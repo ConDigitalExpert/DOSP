@@ -32,10 +32,8 @@ export default function PharmacistLoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/dosp-logo.jpg`} alt="DOSP" className="w-10 h-10" />
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/dosp-logo.jpg`} alt="DOSP" className="h-16 w-auto object-contain mix-blend-multiply" />
           </div>
           <CardTitle className="text-2xl">Pharmacist Dashboard</CardTitle>
           <CardDescription>Sign in to manage consultations and monitor kiosks</CardDescription>

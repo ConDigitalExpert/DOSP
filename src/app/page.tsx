@@ -30,7 +30,7 @@ export default function LandingPage() {
       <div className="max-w-5xl mx-auto px-6 pt-16 pb-12 text-center">
         <div className="flex justify-center mb-6">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/dosp-logo.jpg`} alt="DOSP" className="h-20 w-auto" />
+          <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/dosp-logo.jpg`} alt="DOSP" className="h-20 w-auto object-contain mix-blend-multiply" />
         </div>
         <h1 className="text-5xl font-bold text-foreground leading-tight">
           DOSP

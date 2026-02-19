@@ -18,7 +18,7 @@ export default function PickupLayout({ children }: { children: React.ReactNode }
       <header className="flex items-center justify-between px-8 py-4 bg-white border-b border-border shadow-sm">
         <div className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/dosp-logo.jpg`} alt="DOSP" className="w-12 h-12" />
+          <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/dosp-logo.jpg`} alt="DOSP" className="h-12 w-auto object-contain mix-blend-multiply" />
           <div>
             <h1 className="text-xl font-bold text-foreground tracking-tight">DOSP</h1>
             <p className="text-xs text-muted-foreground">Medication Pickup</p>

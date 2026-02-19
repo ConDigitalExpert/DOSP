@@ -8,16 +8,23 @@ import { lookupPatient } from "@/lib/patient-records";
 
 export default function VerifyPage() {
   const router = useRouter();
-  const { consultation, setVerifiedPatient, skipVerification } = useConsultationStore();
+  const { consultation, startConsultation, setVerifiedPatient, skipVerification } =
+    useConsultationStore();
   const [error, setError] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    // If no active consultation exists (direct navigation or after static-export
+    // hydration where Zustand initialises fresh), start one automatically so the
+    // flow always begins cleanly from this page.
     if (!consultation) {
-      router.replace("/");
+      startConsultation();
     }
-  }, [consultation, router]);
+    setReady(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!consultation) return null;
+  // Avoid flicker during hydration
+  if (!ready) return null;
 
   const handleVerified = (phone: string, dob: string) => {
     const record = lookupPatient(phone, dob);

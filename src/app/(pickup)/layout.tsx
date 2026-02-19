@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { usePickupStore } from "@/stores/pickup-store";
 import { IdleTimeoutModal } from "@/components/kiosk/idle-timeout-modal";
-import Image from "next/image";
 
 export default function PickupLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -18,7 +17,8 @@ export default function PickupLayout({ children }: { children: React.ReactNode }
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 to-white">
       <header className="flex items-center justify-between px-8 py-4 bg-white border-b border-border shadow-sm">
         <div className="flex items-center gap-3">
-          <Image src="/dosp-logo.jpg" alt="DOSP" width={48} height={48} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/dosp-logo.jpg`} alt="DOSP" className="w-12 h-12" />
           <div>
             <h1 className="text-xl font-bold text-foreground tracking-tight">DOSP</h1>
             <p className="text-xs text-muted-foreground">Medication Pickup</p>

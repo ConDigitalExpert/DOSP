@@ -11,7 +11,6 @@ import {
   LogOut,
   Stethoscope,
 } from "lucide-react";
-import Image from "next/image";
 
 const NAV_ITEMS = [
   { href: "/pharmacist/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -27,7 +26,8 @@ export function SidebarNav() {
       {/* Brand */}
       <div className="p-6 border-b border-slate-700">
         <div className="flex items-center gap-3">
-          <Image src="/dosp-logo.jpg" alt="DOSP" width={36} height={36} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/dosp-logo.jpg`} alt="DOSP" className="w-9 h-9" />
           <div>
             <h1 className="text-lg font-bold">DOSP</h1>
             <p className="text-xs text-slate-400">Pharmacist Dashboard</p>

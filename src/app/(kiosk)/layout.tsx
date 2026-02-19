@@ -4,7 +4,6 @@ import { useConsultationStore } from "@/stores/consultation-store";
 import { ProgressStepper } from "@/components/kiosk/progress-stepper";
 import { IdleTimeoutModal } from "@/components/kiosk/idle-timeout-modal";
 import { KioskStep } from "@/lib/types";
-import Image from "next/image";
 
 export default function KioskLayout({ children }: { children: React.ReactNode }) {
   const { currentStep, resetKiosk } = useConsultationStore();
@@ -15,7 +14,8 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
       {/* Header */}
       <header className="flex items-center justify-between px-8 py-4 bg-white border-b border-border shadow-sm">
         <div className="flex items-center gap-3">
-          <Image src="/dosp-logo.jpg" alt="DOSP" width={48} height={48} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/dosp-logo.jpg`} alt="DOSP" className="w-12 h-12" />
           <div>
             <h1 className="text-xl font-bold text-foreground tracking-tight">DOSP</h1>
             <p className="text-xs text-muted-foreground">Digital Off-the-Shelf Pharmacist</p>

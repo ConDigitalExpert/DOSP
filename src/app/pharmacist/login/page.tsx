@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Stethoscope, AlertCircle } from "lucide-react";
-import Image from "next/image";
 
 export default function PharmacistLoginPage() {
   const router = useRouter();
@@ -34,7 +33,8 @@ export default function PharmacistLoginPage() {
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <Image src="/dosp-logo.jpg" alt="DOSP" width={40} height={40} />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/dosp-logo.jpg`} alt="DOSP" className="w-10 h-10" />
             </div>
           </div>
           <CardTitle className="text-2xl">Pharmacist Dashboard</CardTitle>

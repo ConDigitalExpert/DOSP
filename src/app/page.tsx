@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useConsultationStore } from "@/stores/consultation-store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import Image from "next/image";
 import {
   MonitorSmartphone,
   Stethoscope,
@@ -30,7 +29,8 @@ export default function LandingPage() {
       {/* Hero */}
       <div className="max-w-5xl mx-auto px-6 pt-16 pb-12 text-center">
         <div className="flex justify-center mb-6">
-          <Image src="/dosp-logo.jpg" alt="DOSP" width={80} height={80} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/dosp-logo.jpg`} alt="DOSP" className="h-20 w-auto" />
         </div>
         <h1 className="text-5xl font-bold text-foreground leading-tight">
           DOSP

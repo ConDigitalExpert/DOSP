@@ -27,7 +27,7 @@ export function SidebarNav() {
       {/* Brand */}
       <div className="p-6 border-b border-slate-700">
         <div className="flex items-center gap-3">
-          <Image src="/dosp-logo.svg" alt="DOSP" width={36} height={36} />
+          <Image src="/dosp-logo.jpg" alt="DOSP" width={36} height={36} />
           <div>
             <h1 className="text-lg font-bold">DOSP</h1>
             <p className="text-xs text-slate-400">Pharmacist Dashboard</p>

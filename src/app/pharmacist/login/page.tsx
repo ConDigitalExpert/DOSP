@@ -34,7 +34,7 @@ export default function PharmacistLoginPage() {
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <Image src="/dosp-logo.svg" alt="DOSP" width={40} height={40} />
+              <Image src="/dosp-logo.jpg" alt="DOSP" width={40} height={40} />
             </div>
           </div>
           <CardTitle className="text-2xl">Pharmacist Dashboard</CardTitle>

@@ -30,7 +30,7 @@ export default function LandingPage() {
       {/* Hero */}
       <div className="max-w-5xl mx-auto px-6 pt-16 pb-12 text-center">
         <div className="flex justify-center mb-6">
-          <Image src="/dosp-logo.svg" alt="DOSP" width={80} height={80} />
+          <Image src="/dosp-logo.jpg" alt="DOSP" width={80} height={80} />
         </div>
         <h1 className="text-5xl font-bold text-foreground leading-tight">
           DOSP

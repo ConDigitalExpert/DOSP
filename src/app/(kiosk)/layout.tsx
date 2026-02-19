@@ -15,7 +15,7 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
       {/* Header */}
       <header className="flex items-center justify-between px-8 py-4 bg-white border-b border-border shadow-sm">
         <div className="flex items-center gap-3">
-          <Image src="/dosp-logo.svg" alt="DOSP" width={48} height={48} />
+          <Image src="/dosp-logo.jpg" alt="DOSP" width={48} height={48} />
           <div>
             <h1 className="text-xl font-bold text-foreground tracking-tight">DOSP</h1>
             <p className="text-xs text-muted-foreground">Digital Off-the-Shelf Pharmacist</p>

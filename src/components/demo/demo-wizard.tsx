@@ -194,14 +194,19 @@ function useSpotlightRect(
 function SpotlightOverlay({
   rect,
   padding = 8,
+  dimmed = true,
 }: {
   rect: SpotlightRect | null;
   padding?: number;
+  dimmed?: boolean;
 }) {
+  // During animations (dimmed=false): very light overlay so interactions are fully visible
+  const overlayClass = dimmed
+    ? "fixed inset-0 bg-black/40 demo-fade-in"
+    : "fixed inset-0 bg-black/15 demo-fade-in";
+
   if (!rect) {
-    return (
-      <div className="fixed inset-0 bg-black/40 demo-fade-in" />
-    );
+    return <div className={overlayClass} />;
   }
 
   const p = padding;
@@ -224,21 +229,27 @@ function SpotlightOverlay({
     ${cutout.left}px ${cutout.top}px
   )`;
 
+  const overlayClipClass = dimmed
+    ? "fixed inset-0 bg-black/40 demo-fade-in demo-spotlight-transition"
+    : "fixed inset-0 bg-black/15 demo-fade-in demo-spotlight-transition";
+
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/40 demo-fade-in demo-spotlight-transition"
+        className={overlayClipClass}
         style={{ clipPath }}
       />
-      <div
-        className="fixed rounded-2xl demo-ring-pulse pointer-events-none"
-        style={{
-          top: cutout.top,
-          left: cutout.left,
-          width: cutout.width,
-          height: cutout.height,
-        }}
-      />
+      {dimmed && (
+        <div
+          className="fixed rounded-2xl demo-ring-pulse pointer-events-none"
+          style={{
+            top: cutout.top,
+            left: cutout.left,
+            width: cutout.width,
+            height: cutout.height,
+          }}
+        />
+      )}
     </>
   );
 }
@@ -1127,19 +1138,23 @@ function DemoWizardOverlay() {
     dragHandleProps,
   };
 
+  // Panel is visible only when NOT transitioning AND NOT playing micro-actions
+  const showPanel = !isTransitioning && !isMicroActionPlaying;
+
   return (
-    <div className="fixed inset-0 z-[100]" style={{ pointerEvents: "auto" }}>
-      {/* Spotlight overlay — lighter dimming so content shows through */}
+    <div className="fixed inset-0 z-[100]" style={{ pointerEvents: showPanel ? "auto" : "none" }}>
+      {/* Spotlight overlay — lighter during animations so interactions are visible */}
       {!isTransitioning && (
         <SpotlightOverlay
           rect={spotlightRect}
           padding={step.spotlightPadding}
+          dimmed={!isMicroActionPlaying}
         />
       )}
 
       {/* Transitioning state */}
       {isTransitioning && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center" style={{ pointerEvents: "none" }}>
           <div className="flex items-center gap-3 text-white/70">
             <div className="w-5 h-5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
             <span className="text-sm demo-text-shadow-light">Navigating...</span>
@@ -1147,15 +1162,15 @@ function DemoWizardOverlay() {
         </div>
       )}
 
-      {/* Animated Cursor */}
+      {/* Animated Cursor — always visible during micro-actions */}
       <DemoCursor
         position={cursorPosition}
         cursorState={cursorState}
         ripples={ripples}
       />
 
-      {/* Narration panel — choose style */}
-      {!isTransitioning && (
+      {/* Narration panel — hidden during animations, reappears when done */}
+      {showPanel && (
         <>
           {isCenter ? (
             <CenterPanel {...panelProps} />

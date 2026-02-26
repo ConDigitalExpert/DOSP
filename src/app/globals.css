@@ -78,6 +78,41 @@ body {
   background: #64748b;
 }
 
+/* ===== Demo Wizard Glass & Drag ===== */
+
+/* Glass panel — maximum transparency while readable */
+.demo-glass {
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Text shadow for readability on transparent bg */
+.demo-text-shadow {
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6), 0 0 12px rgba(0, 0, 0, 0.3);
+}
+
+.demo-text-shadow-light {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Drag handle styling */
+.demo-drag-handle {
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.demo-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Drag handle dots pattern */
+.demo-drag-dots {
+  background-image: radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px);
+  background-size: 6px 6px;
+}
+
 /* ===== Demo Wizard Animations ===== */
 
 .demo-fade-in {

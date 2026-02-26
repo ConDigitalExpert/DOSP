@@ -12,8 +12,10 @@ import {
   UserCheck,
   BarChart3,
   Pill,
+  Presentation,
 } from "lucide-react";
 import Link from "next/link";
+import { useDemoStore } from "@/stores/demo-store";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -42,6 +44,13 @@ export default function LandingPage() {
           AI-Powered OTC Triage that frees pharmacists for clinical care.
           Safe, conservative, and always backed by a real pharmacist.
         </p>
+        <button
+          onClick={() => useDemoStore.getState().startDemo()}
+          className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-full bg-slate-900 text-white font-semibold text-sm hover:bg-slate-800 transition-colors shadow-lg hover:shadow-xl"
+        >
+          <Presentation className="w-4 h-4" />
+          Start Guided Demo
+        </button>
 
         {/* Entry Points */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 max-w-5xl mx-auto">

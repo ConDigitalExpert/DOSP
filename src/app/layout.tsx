@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { DemoWizardLoader } from "@/components/demo/demo-wizard-loader";
 
 export const metadata: Metadata = {
   title: "DOSP - Digital Off-the-Shelf Pharmacist",
@@ -15,6 +16,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="bg-background text-foreground antialiased">
         {children}
+        <DemoWizardLoader />
       </body>
     </html>
   );

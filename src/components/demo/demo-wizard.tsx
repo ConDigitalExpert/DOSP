@@ -5,7 +5,6 @@ import {
   useEffect,
   useCallback,
   useRef,
-  type ReactNode,
 } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useDemoStore } from "@/stores/demo-store";
@@ -13,11 +12,9 @@ import { DEMO_STEPS, type DemoStep, type MicroAction } from "./demo-steps";
 import {
   ChevronLeft,
   ChevronRight,
-  X,
-  Presentation,
   PanelBottom,
   LayoutGrid,
-  MousePointer2,
+  GripHorizontal,
 } from "lucide-react";
 
 // =============================================================================
@@ -81,6 +78,58 @@ function useTypewriter(text: string, speed = 14) {
   }, [text]);
 
   return { displayed, done, skip };
+}
+
+// =============================================================================
+// DRAGGABLE HOOK
+// =============================================================================
+
+function useDraggable() {
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const dragging = useRef(false);
+  const dragStart = useRef({ x: 0, y: 0 });
+  const offsetStart = useRef({ x: 0, y: 0 });
+
+  // Reset offset when step changes
+  const resetOffset = useCallback(() => setOffset({ x: 0, y: 0 }), []);
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      dragging.current = true;
+      dragStart.current = { x: e.clientX, y: e.clientY };
+      offsetStart.current = { ...offset };
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    [offset]
+  );
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    setOffset({
+      x: offsetStart.current.x + (e.clientX - dragStart.current.x),
+      y: offsetStart.current.y + (e.clientY - dragStart.current.y),
+    });
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const onPointerUp = useCallback((e: React.PointerEvent) => {
+    dragging.current = false;
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  return {
+    offset,
+    resetOffset,
+    dragHandleProps: {
+      onPointerDown,
+      onPointerMove,
+      onPointerUp,
+    },
+  };
 }
 
 // =============================================================================
@@ -151,7 +200,7 @@ function SpotlightOverlay({
 }) {
   if (!rect) {
     return (
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px] demo-fade-in" />
+      <div className="fixed inset-0 bg-black/40 demo-fade-in" />
     );
   }
 
@@ -178,7 +227,7 @@ function SpotlightOverlay({
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-[2px] demo-fade-in demo-spotlight-transition"
+        className="fixed inset-0 bg-black/40 demo-fade-in demo-spotlight-transition"
         style={{ clipPath }}
       />
       <div
@@ -271,7 +320,7 @@ function DemoCursor({
 }
 
 // =============================================================================
-// CINEMATIC NARRATION BAR (Bottom Bar Style)
+// CINEMATIC NARRATION BAR (Bottom Bar Style — Glass + Draggable)
 // =============================================================================
 
 function CinematicNarrationBar({
@@ -282,6 +331,8 @@ function CinematicNarrationBar({
   onPrev,
   onExit,
   onToggleStyle,
+  dragOffset,
+  dragHandleProps,
 }: {
   step: DemoStep;
   stepIndex: number;
@@ -290,6 +341,12 @@ function CinematicNarrationBar({
   onPrev: () => void;
   onExit: () => void;
   onToggleStyle: () => void;
+  dragOffset: { x: number; y: number };
+  dragHandleProps: {
+    onPointerDown: (e: React.PointerEvent) => void;
+    onPointerMove: (e: React.PointerEvent) => void;
+    onPointerUp: (e: React.PointerEvent) => void;
+  };
 }) {
   const { displayed, done, skip } = useTypewriter(step.description, 12);
   const isLast = stepIndex === totalSteps - 1;
@@ -297,33 +354,44 @@ function CinematicNarrationBar({
 
   return (
     <div
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-4xl z-[102] demo-bar-in"
+      className="fixed bottom-6 left-1/2 w-[calc(100%-3rem)] max-w-4xl z-[102] demo-bar-in"
       key={step.id}
+      style={{
+        transform: `translateX(calc(-50% + ${dragOffset.x}px)) translateY(${dragOffset.y}px)`,
+      }}
     >
-      <div className="relative bg-gradient-to-r from-slate-900/98 via-slate-800/98 to-slate-900/98 backdrop-blur-2xl text-white rounded-2xl shadow-2xl border border-white/15 overflow-hidden demo-narration-accent">
+      <div className="relative demo-glass text-white rounded-2xl shadow-2xl overflow-hidden demo-narration-accent">
+        {/* Drag Handle */}
+        <div
+          className="demo-drag-handle flex items-center justify-center pt-2 pb-0"
+          {...dragHandleProps}
+        >
+          <GripHorizontal className="w-5 h-5 text-white/30" />
+        </div>
+
         {/* Act Badge + Step Counter */}
-        <div className="flex items-center justify-between px-8 pt-5 pb-1">
+        <div className="flex items-center justify-between px-8 pt-2 pb-1">
           {step.actLabel && (
-            <span className="text-sm font-semibold text-sky-400 uppercase tracking-widest">
+            <span className="text-sm font-semibold text-sky-400 uppercase tracking-widest demo-text-shadow-light">
               {step.actLabel}
             </span>
           )}
-          <span className="text-sm text-slate-400 font-mono ml-auto">
+          <span className="text-sm text-slate-300 font-mono ml-auto demo-text-shadow-light">
             {stepIndex + 1} / {totalSteps}
           </span>
         </div>
 
         {/* Title */}
         <div className="px-8 pb-2">
-          <h2 className="text-2xl md:text-3xl font-bold leading-tight tracking-tight">
+          <h2 className="text-2xl md:text-3xl font-bold leading-tight tracking-tight demo-text-shadow">
             {step.title}
           </h2>
         </div>
 
         {/* Description with typewriter */}
-        <div className="px-8 pb-5">
+        <div className="px-8 pb-4">
           <p
-            className="text-base md:text-lg text-slate-200 leading-relaxed min-h-[3.5rem] cursor-pointer"
+            className="text-base md:text-lg text-slate-100 leading-relaxed min-h-[3.5rem] cursor-pointer demo-text-shadow-light"
             onClick={() => !done && skip()}
           >
             {displayed}
@@ -335,7 +403,7 @@ function CinematicNarrationBar({
 
         {/* Progress Bar */}
         <div className="px-8 pb-3">
-          <div className="h-1.5 bg-slate-700/80 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-sky-400 to-sky-500 rounded-full transition-all duration-500"
               style={{
@@ -346,18 +414,18 @@ function CinematicNarrationBar({
         </div>
 
         {/* Controls */}
-        <div className="flex items-center justify-between px-8 pb-5">
+        <div className="flex items-center justify-between px-8 pb-4">
           <div className="flex items-center gap-3">
             <button
               onClick={onExit}
-              className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
+              className="text-sm text-white/40 hover:text-white/70 transition-colors"
             >
               Exit Demo
             </button>
             <button
               onClick={onToggleStyle}
-              className="text-slate-500 hover:text-slate-300 transition-colors p-1 rounded"
-              title="Switch panel style"
+              className="text-white/40 hover:text-white/70 transition-colors p-1 rounded"
+              title="Switch to floating card"
             >
               <LayoutGrid className="w-4 h-4" />
             </button>
@@ -367,7 +435,7 @@ function CinematicNarrationBar({
             {!isFirst && (
               <button
                 onClick={onPrev}
-                className="flex items-center gap-1 px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+                className="flex items-center gap-1 px-4 py-2 text-sm text-white/70 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Back
@@ -375,7 +443,7 @@ function CinematicNarrationBar({
             )}
             <button
               onClick={onNext}
-              className="flex items-center gap-1 px-5 py-2 text-sm font-medium bg-sky-500 hover:bg-sky-400 text-white rounded-lg transition-colors"
+              className="flex items-center gap-1 px-5 py-2 text-sm font-medium bg-sky-500/80 hover:bg-sky-500 text-white rounded-lg transition-colors"
             >
               {isLast ? (
                 "Finish"
@@ -392,8 +460,8 @@ function CinematicNarrationBar({
 
       {/* Keyboard hint */}
       <div className="text-center mt-2">
-        <span className="text-xs text-slate-400">
-          Arrow keys or Space to navigate &middot; Esc to exit
+        <span className="text-xs text-white/30 demo-text-shadow-light">
+          Arrow keys or Space to navigate &middot; Esc to exit &middot; Drag to move
         </span>
       </div>
     </div>
@@ -401,7 +469,7 @@ function CinematicNarrationBar({
 }
 
 // =============================================================================
-// FLOATING NARRATION CARD (Enhanced Card Style)
+// FLOATING NARRATION CARD (Glass + Draggable)
 // =============================================================================
 
 function FloatingNarrationCard({
@@ -412,6 +480,8 @@ function FloatingNarrationCard({
   onPrev,
   onExit,
   onToggleStyle,
+  dragOffset,
+  dragHandleProps,
 }: {
   step: DemoStep;
   stepIndex: number;
@@ -420,6 +490,12 @@ function FloatingNarrationCard({
   onPrev: () => void;
   onExit: () => void;
   onToggleStyle: () => void;
+  dragOffset: { x: number; y: number };
+  dragHandleProps: {
+    onPointerDown: (e: React.PointerEvent) => void;
+    onPointerMove: (e: React.PointerEvent) => void;
+    onPointerUp: (e: React.PointerEvent) => void;
+  };
 }) {
   const { displayed, done, skip } = useTypewriter(step.description, 12);
   const isLast = stepIndex === totalSteps - 1;
@@ -428,35 +504,54 @@ function FloatingNarrationCard({
   const position = step.panelPosition || "bottom-right";
 
   const positionClasses: Record<string, string> = {
-    center: "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-xl",
-    bottom: "bottom-28 left-1/2 -translate-x-1/2 max-w-xl",
+    center: "top-1/2 left-1/2 max-w-xl",
+    bottom: "bottom-28 left-1/2 max-w-xl",
     "bottom-right": "bottom-28 right-8 max-w-xl",
     "bottom-left": "bottom-28 left-8 max-w-xl",
     "top-right": "top-8 right-8 max-w-xl",
     "top-left": "top-8 left-8 max-w-xl",
   };
 
+  // Calculate base transform from position, then add drag offset
+  const baseTransforms: Record<string, string> = {
+    center: `translate(calc(-50% + ${dragOffset.x}px), calc(-50% + ${dragOffset.y}px))`,
+    bottom: `translate(calc(-50% + ${dragOffset.x}px), ${dragOffset.y}px)`,
+    "bottom-right": `translate(${dragOffset.x}px, ${dragOffset.y}px)`,
+    "bottom-left": `translate(${dragOffset.x}px, ${dragOffset.y}px)`,
+    "top-right": `translate(${dragOffset.x}px, ${dragOffset.y}px)`,
+    "top-left": `translate(${dragOffset.x}px, ${dragOffset.y}px)`,
+  };
+
   return (
     <div
       className={`fixed ${positionClasses[position]} z-[102] demo-panel-in`}
       key={step.id}
+      style={{ transform: baseTransforms[position] }}
     >
-      <div className="relative bg-gradient-to-br from-slate-900/98 via-slate-800/98 to-slate-900/98 backdrop-blur-2xl text-white rounded-2xl shadow-2xl border border-white/15 overflow-hidden demo-narration-accent">
+      <div className="relative demo-glass text-white rounded-2xl shadow-2xl overflow-hidden demo-narration-accent">
+        {/* Drag Handle */}
+        <div
+          className="demo-drag-handle flex items-center justify-center pt-2 pb-0"
+          {...dragHandleProps}
+        >
+          <GripHorizontal className="w-5 h-5 text-white/30" />
+        </div>
+
         {/* Act Badge + Step Counter */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-1">
+        <div className="flex items-center justify-between px-6 pt-2 pb-1">
           {step.actLabel && (
-            <span className="text-sm font-semibold text-sky-400 uppercase tracking-widest">
+            <span className="text-sm font-semibold text-sky-400 uppercase tracking-widest demo-text-shadow-light">
               {step.actLabel}
             </span>
           )}
-          <span className="text-sm text-slate-400 font-mono ml-auto">
+          <span className="text-sm text-slate-300 font-mono ml-auto demo-text-shadow-light">
             {stepIndex + 1} / {totalSteps}
           </span>
         </div>
 
         {/* Title */}
         <div className="px-6 pb-2">
-          <h2 className="text-2xl font-bold leading-tight tracking-tight">
+          <h2 className="text-2xl font-bold leading-tight tracking-tight demo-text-shadow">
             {step.title}
           </h2>
         </div>
@@ -464,7 +559,7 @@ function FloatingNarrationCard({
         {/* Description with typewriter */}
         <div className="px-6 pb-4">
           <p
-            className="text-base text-slate-200 leading-relaxed min-h-[3rem] cursor-pointer"
+            className="text-base text-slate-100 leading-relaxed min-h-[3rem] cursor-pointer demo-text-shadow-light"
             onClick={() => !done && skip()}
           >
             {displayed}
@@ -476,7 +571,7 @@ function FloatingNarrationCard({
 
         {/* Progress Bar */}
         <div className="px-6 pb-3">
-          <div className="h-1.5 bg-slate-700/80 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-sky-400 to-sky-500 rounded-full transition-all duration-500"
               style={{
@@ -487,18 +582,18 @@ function FloatingNarrationCard({
         </div>
 
         {/* Controls */}
-        <div className="flex items-center justify-between px-6 pb-5">
+        <div className="flex items-center justify-between px-6 pb-4">
           <div className="flex items-center gap-3">
             <button
               onClick={onExit}
-              className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
+              className="text-sm text-white/40 hover:text-white/70 transition-colors"
             >
               Exit Demo
             </button>
             <button
               onClick={onToggleStyle}
-              className="text-slate-500 hover:text-slate-300 transition-colors p-1 rounded"
-              title="Switch panel style"
+              className="text-white/40 hover:text-white/70 transition-colors p-1 rounded"
+              title="Switch to bottom bar"
             >
               <PanelBottom className="w-4 h-4" />
             </button>
@@ -508,7 +603,7 @@ function FloatingNarrationCard({
             {!isFirst && (
               <button
                 onClick={onPrev}
-                className="flex items-center gap-1 px-3 py-2 text-sm text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+                className="flex items-center gap-1 px-3 py-2 text-sm text-white/70 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Back
@@ -516,7 +611,7 @@ function FloatingNarrationCard({
             )}
             <button
               onClick={onNext}
-              className="flex items-center gap-1 px-5 py-2 text-sm font-medium bg-sky-500 hover:bg-sky-400 text-white rounded-lg transition-colors"
+              className="flex items-center gap-1 px-5 py-2 text-sm font-medium bg-sky-500/80 hover:bg-sky-500 text-white rounded-lg transition-colors"
             >
               {isLast ? (
                 "Finish"
@@ -533,8 +628,8 @@ function FloatingNarrationCard({
 
       {/* Keyboard hint */}
       <div className="text-center mt-2">
-        <span className="text-xs text-slate-400">
-          Arrow keys or Space to navigate &middot; Esc to exit
+        <span className="text-xs text-white/30 demo-text-shadow-light">
+          Arrow keys or Space &middot; Esc to exit &middot; Drag to move
         </span>
       </div>
     </div>
@@ -542,7 +637,7 @@ function FloatingNarrationCard({
 }
 
 // =============================================================================
-// CENTER PANEL (for welcome/closing steps)
+// CENTER PANEL (for welcome/closing — Glass + Draggable)
 // =============================================================================
 
 function CenterPanel({
@@ -552,7 +647,8 @@ function CenterPanel({
   onNext,
   onPrev,
   onExit,
-  onToggleStyle,
+  dragOffset,
+  dragHandleProps,
 }: {
   step: DemoStep;
   stepIndex: number;
@@ -560,7 +656,12 @@ function CenterPanel({
   onNext: () => void;
   onPrev: () => void;
   onExit: () => void;
-  onToggleStyle: () => void;
+  dragOffset: { x: number; y: number };
+  dragHandleProps: {
+    onPointerDown: (e: React.PointerEvent) => void;
+    onPointerMove: (e: React.PointerEvent) => void;
+    onPointerUp: (e: React.PointerEvent) => void;
+  };
 }) {
   const { displayed, done, skip } = useTypewriter(step.description, 10);
   const isLast = stepIndex === totalSteps - 1;
@@ -568,25 +669,36 @@ function CenterPanel({
 
   return (
     <div
-      className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-3rem)] max-w-2xl z-[102] demo-panel-in"
+      className="fixed top-1/2 left-1/2 w-[calc(100%-3rem)] max-w-2xl z-[102] demo-panel-in"
       key={step.id}
+      style={{
+        transform: `translate(calc(-50% + ${dragOffset.x}px), calc(-50% + ${dragOffset.y}px))`,
+      }}
     >
-      <div className="relative bg-gradient-to-br from-slate-900/98 via-slate-800/98 to-slate-900/98 backdrop-blur-2xl text-white rounded-3xl shadow-2xl border border-white/15 overflow-hidden demo-narration-accent">
+      <div className="relative demo-glass text-white rounded-3xl shadow-2xl overflow-hidden demo-narration-accent">
+        {/* Drag Handle */}
+        <div
+          className="demo-drag-handle flex items-center justify-center pt-3 pb-0"
+          {...dragHandleProps}
+        >
+          <GripHorizontal className="w-5 h-5 text-white/30" />
+        </div>
+
         {/* Act Badge */}
-        <div className="flex items-center justify-between px-10 pt-8 pb-2">
+        <div className="flex items-center justify-between px-10 pt-2 pb-2">
           {step.actLabel && (
-            <span className="text-sm font-semibold text-sky-400 uppercase tracking-widest">
+            <span className="text-sm font-semibold text-sky-400 uppercase tracking-widest demo-text-shadow-light">
               {step.actLabel}
             </span>
           )}
-          <span className="text-sm text-slate-400 font-mono ml-auto">
+          <span className="text-sm text-slate-300 font-mono ml-auto demo-text-shadow-light">
             {stepIndex + 1} / {totalSteps}
           </span>
         </div>
 
         {/* Title */}
         <div className="px-10 pb-3 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold leading-tight tracking-tight">
+          <h2 className="text-3xl md:text-4xl font-bold leading-tight tracking-tight demo-text-shadow">
             {step.title}
           </h2>
         </div>
@@ -594,7 +706,7 @@ function CenterPanel({
         {/* Description */}
         <div className="px-10 pb-6 text-center">
           <p
-            className="text-lg md:text-xl text-slate-200 leading-relaxed min-h-[4rem] cursor-pointer"
+            className="text-lg md:text-xl text-slate-100 leading-relaxed min-h-[4rem] cursor-pointer demo-text-shadow-light"
             onClick={() => !done && skip()}
           >
             {displayed}
@@ -606,7 +718,7 @@ function CenterPanel({
 
         {/* Progress */}
         <div className="px-10 pb-4">
-          <div className="h-1.5 bg-slate-700/80 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-sky-400 to-sky-500 rounded-full transition-all duration-500"
               style={{
@@ -617,10 +729,10 @@ function CenterPanel({
         </div>
 
         {/* Controls */}
-        <div className="flex items-center justify-between px-10 pb-8">
+        <div className="flex items-center justify-between px-10 pb-6">
           <button
             onClick={onExit}
-            className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
+            className="text-sm text-white/40 hover:text-white/70 transition-colors"
           >
             Exit Demo
           </button>
@@ -629,7 +741,7 @@ function CenterPanel({
             {!isFirst && (
               <button
                 onClick={onPrev}
-                className="flex items-center gap-1 px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+                className="flex items-center gap-1 px-4 py-2 text-sm text-white/70 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Back
@@ -637,7 +749,7 @@ function CenterPanel({
             )}
             <button
               onClick={onNext}
-              className="flex items-center gap-1 px-6 py-2.5 text-base font-medium bg-sky-500 hover:bg-sky-400 text-white rounded-xl transition-colors"
+              className="flex items-center gap-1 px-6 py-2.5 text-base font-medium bg-sky-500/80 hover:bg-sky-500 text-white rounded-xl transition-colors"
             >
               {isLast ? (
                 "Finish"
@@ -741,6 +853,14 @@ function DemoWizardOverlay() {
     Array<{ id: number; x: number; y: number }>
   >([]);
   const rippleIdRef = useRef(0);
+
+  // Draggable panel
+  const { offset: dragOffset, resetOffset, dragHandleProps } = useDraggable();
+
+  // Reset drag offset when step changes
+  useEffect(() => {
+    resetOffset();
+  }, [currentStepIndex, resetOffset]);
 
   // Spotlight measurement
   const spotlightRect = useSpotlightRect(
@@ -1003,11 +1123,13 @@ function DemoWizardOverlay() {
     onPrev: prevStep,
     onExit: stopDemo,
     onToggleStyle: togglePanelStyle,
+    dragOffset,
+    dragHandleProps,
   };
 
   return (
     <div className="fixed inset-0 z-[100]" style={{ pointerEvents: "auto" }}>
-      {/* Spotlight overlay */}
+      {/* Spotlight overlay — lighter dimming so content shows through */}
       {!isTransitioning && (
         <SpotlightOverlay
           rect={spotlightRect}
@@ -1017,10 +1139,10 @@ function DemoWizardOverlay() {
 
       {/* Transitioning state */}
       {isTransitioning && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
           <div className="flex items-center gap-3 text-white/70">
             <div className="w-5 h-5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm">Navigating...</span>
+            <span className="text-sm demo-text-shadow-light">Navigating...</span>
           </div>
         </div>
       )}

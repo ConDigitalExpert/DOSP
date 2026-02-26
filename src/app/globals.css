@@ -88,13 +88,45 @@ body {
   animation: demoPanelIn 0.4s ease-out;
 }
 
-.demo-ring-pulse {
-  animation: demoRingPulse 2s ease-in-out infinite;
+.demo-bar-in {
+  animation: demoBarSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.demo-arrow-draw {
-  stroke-dashoffset: 200;
-  animation: demoArrowDraw 0.8s ease-out 0.3s forwards;
+.demo-ring-pulse {
+  animation: demoRingPulse 3s ease-in-out infinite;
+}
+
+/* Cursor click ripple */
+.demo-cursor-ripple {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(14, 165, 233, 0.35);
+  pointer-events: none;
+  animation: demoCursorRipple 0.6s ease-out forwards;
+}
+
+/* Field glow when being typed into */
+.demo-field-glow {
+  animation: demoFieldGlow 1.5s ease-in-out infinite;
+}
+
+/* Gradient accent line for narration bar/card */
+.demo-narration-accent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, rgba(14, 165, 233, 0.8) 30%, rgba(168, 85, 247, 0.4) 70%, transparent 100%);
+  border-radius: 2px 2px 0 0;
+}
+
+/* Smooth spotlight transitions */
+.demo-spotlight-transition {
+  transition: clip-path 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @keyframes demoFadeIn {
@@ -113,15 +145,37 @@ body {
   }
 }
 
-@keyframes demoRingPulse {
-  0%, 100% {
-    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.6), 0 0 12px 2px rgba(14, 165, 233, 0.15);
+@keyframes demoBarSlideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(40px);
   }
-  50% {
-    box-shadow: 0 0 0 5px rgba(14, 165, 233, 0.3), 0 0 24px 6px rgba(14, 165, 233, 0.1);
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
 }
 
-@keyframes demoArrowDraw {
-  to { stroke-dashoffset: 0; }
+@keyframes demoRingPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.5), 0 0 16px 2px rgba(14, 165, 233, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(14, 165, 233, 0.2), 0 0 32px 8px rgba(14, 165, 233, 0.08);
+  }
+}
+
+@keyframes demoCursorRipple {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 0.6; }
+  100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+}
+
+@keyframes demoFieldGlow {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3); }
+  50% { box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.5), 0 0 20px rgba(14, 165, 233, 0.15); }
+}
+
+@keyframes demoCursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }

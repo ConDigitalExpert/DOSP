@@ -4,6 +4,23 @@ import { usePickupStore } from "@/stores/pickup-store";
 import { SymptomCategory } from "@/lib/types";
 import { MOCK_PATIENT_RECORDS } from "@/lib/patient-records";
 
+// =============================================================================
+// MICRO-ACTION TYPE SYSTEM
+// =============================================================================
+
+export type MicroAction =
+  | { type: "set-state"; action: () => void }
+  | { type: "wait"; ms: number }
+  | { type: "cursor-move"; selector: string; durationMs?: number }
+  | { type: "cursor-click"; selector?: string }
+  | { type: "type-into"; selector: string; value: string; durationMs?: number }
+  | { type: "select-button"; selector: string }
+  | { type: "spotlight"; selector: string; padding?: number };
+
+// =============================================================================
+// DEMO STEP TYPE
+// =============================================================================
+
 export interface DemoStep {
   id: string;
   title: string;
@@ -12,12 +29,22 @@ export interface DemoStep {
   route?: string;
   spotlightSelector?: string;
   spotlightPadding?: number;
-  panelPosition?: "center" | "bottom-right" | "bottom-left" | "top-right" | "top-left";
-  action?: () => void | Promise<void>;
+  panelPosition?:
+    | "center"
+    | "bottom"
+    | "bottom-right"
+    | "bottom-left"
+    | "top-right"
+    | "top-left";
+  microActions?: MicroAction[];
   waitAfterAction?: number;
 }
 
 const sarahRecord = MOCK_PATIENT_RECORDS[0]; // Sarah Johnson
+
+// =============================================================================
+// DEMO STEPS — 16 steps across 5 acts
+// =============================================================================
 
 export const DEMO_STEPS: DemoStep[] = [
   // ===== ACT 1: THE PLATFORM =====
@@ -39,7 +66,33 @@ export const DEMO_STEPS: DemoStep[] = [
     route: "/",
     spotlightSelector: ".grid.grid-cols-1.md\\:grid-cols-3.gap-6.mt-12",
     spotlightPadding: 16,
-    panelPosition: "bottom-right",
+    panelPosition: "bottom",
+    microActions: [
+      { type: "wait", ms: 400 },
+      {
+        type: "cursor-move",
+        selector:
+          ".grid.grid-cols-1.md\\:grid-cols-3.gap-6.mt-12 > :nth-child(1)",
+        durationMs: 600,
+      },
+      { type: "cursor-click" },
+      { type: "wait", ms: 500 },
+      {
+        type: "cursor-move",
+        selector:
+          ".grid.grid-cols-1.md\\:grid-cols-3.gap-6.mt-12 > :nth-child(2)",
+        durationMs: 500,
+      },
+      { type: "cursor-click" },
+      { type: "wait", ms: 500 },
+      {
+        type: "cursor-move",
+        selector:
+          ".grid.grid-cols-1.md\\:grid-cols-3.gap-6.mt-12 > :nth-child(3)",
+        durationMs: 500,
+      },
+      { type: "cursor-click" },
+    ],
   },
   {
     id: "safety-first",
@@ -48,7 +101,8 @@ export const DEMO_STEPS: DemoStep[] = [
     description:
       "Conservative by design — if in doubt, DOSP escalates to a real pharmacist. Every interaction is logged with a full audit trail for regulatory compliance.",
     route: "/",
-    spotlightSelector: ".grid.grid-cols-1.md\\:grid-cols-3.gap-6:not(.mt-12)",
+    spotlightSelector:
+      ".grid.grid-cols-1.md\\:grid-cols-3.gap-6:not(.mt-12)",
     spotlightPadding: 12,
     panelPosition: "top-right",
   },
@@ -59,15 +113,49 @@ export const DEMO_STEPS: DemoStep[] = [
     actLabel: "Act 2 — Patient Kiosk",
     title: "Patient Verification",
     description:
-      "The patient verifies their identity with phone number and date of birth. Existing pharmacy records are loaded automatically — no re-entering medical history.",
+      "The patient verifies their identity with phone number and date of birth. Watch as the data fills in — existing pharmacy records are loaded automatically.",
     route: "/verify",
     spotlightSelector: "main",
     spotlightPadding: 8,
-    panelPosition: "bottom-right",
-    action: () => {
-      useConsultationStore.getState().resetKiosk();
-      useConsultationStore.getState().startConsultation();
-    },
+    panelPosition: "bottom",
+    microActions: [
+      {
+        type: "set-state",
+        action: () => {
+          useConsultationStore.getState().resetKiosk();
+          useConsultationStore.getState().startConsultation();
+        },
+      },
+      { type: "wait", ms: 800 },
+      { type: "cursor-move", selector: "input[type='tel']", durationMs: 600 },
+      { type: "cursor-click" },
+      {
+        type: "type-into",
+        selector: "input[type='tel']",
+        value: "555-100-1001",
+        durationMs: 1400,
+      },
+      { type: "wait", ms: 400 },
+      {
+        type: "cursor-move",
+        selector: "input[type='date']",
+        durationMs: 500,
+      },
+      { type: "cursor-click" },
+      {
+        type: "type-into",
+        selector: "input[type='date']",
+        value: "1990-05-15",
+        durationMs: 600,
+      },
+      { type: "wait", ms: 500 },
+      {
+        type: "cursor-move",
+        selector: "button:has(.lucide-search)",
+        durationMs: 500,
+      },
+      { type: "cursor-click" },
+    ],
     waitAfterAction: 400,
   },
   {
@@ -78,12 +166,17 @@ export const DEMO_STEPS: DemoStep[] = [
       "Sarah Johnson's medical history is found — diabetes, current medications (metformin, lisinopril), and NSAID allergy are all pre-loaded. This saves time and improves safety.",
     route: "/verify",
     spotlightSelector: "main",
-    panelPosition: "bottom-right",
-    action: () => {
-      useConsultationStore
-        .getState()
-        .setVerifiedPatient(sarahRecord.id, sarahRecord.profile);
-    },
+    panelPosition: "bottom",
+    microActions: [
+      {
+        type: "set-state",
+        action: () => {
+          useConsultationStore
+            .getState()
+            .setVerifiedPatient(sarahRecord.id, sarahRecord.profile);
+        },
+      },
+    ],
     waitAfterAction: 500,
   },
   {
@@ -91,19 +184,65 @@ export const DEMO_STEPS: DemoStep[] = [
     actLabel: "Act 2 — Patient Kiosk",
     title: "Symptom Triage",
     description:
-      "The patient selects their symptom category — Headache. The system records sub-symptoms (tension headache, sinus pressure), severity (2/5), and duration (1 day).",
+      "The patient selects their symptom category — Headache. The system records sub-symptoms, severity, and duration for a complete clinical picture.",
     route: "/symptoms",
     spotlightSelector: "main",
     spotlightPadding: 8,
-    panelPosition: "bottom-right",
-    action: () => {
-      useConsultationStore.getState().setSymptoms({
-        category: SymptomCategory.HEADACHE,
-        subSymptoms: ["tension_headache", "sinus_pressure"],
-        severity: 2,
-        durationDays: 1,
-      });
-    },
+    panelPosition: "bottom",
+    microActions: [
+      { type: "wait", ms: 600 },
+      // Click the Headache card (first in the grid)
+      {
+        type: "cursor-move",
+        selector: ".grid.grid-cols-2 button:nth-child(1)",
+        durationMs: 600,
+      },
+      { type: "cursor-click" },
+      { type: "wait", ms: 700 },
+      // Now on sub-symptom page — click first two symptoms
+      {
+        type: "cursor-move",
+        selector: ".grid.grid-cols-1.md\\:grid-cols-2 button:nth-child(1)",
+        durationMs: 500,
+      },
+      { type: "cursor-click" },
+      { type: "wait", ms: 400 },
+      {
+        type: "cursor-move",
+        selector: ".grid.grid-cols-1.md\\:grid-cols-2 button:nth-child(2)",
+        durationMs: 400,
+      },
+      { type: "cursor-click" },
+      { type: "wait", ms: 400 },
+      // Select severity "Mild" (2nd button in severity row)
+      {
+        type: "cursor-move",
+        selector: ".flex.items-center.gap-2 button:nth-child(2)",
+        durationMs: 400,
+      },
+      { type: "cursor-click" },
+      { type: "wait", ms: 300 },
+      // Select duration "1 day" (2nd in duration options)
+      {
+        type: "cursor-move",
+        selector: ".flex.flex-wrap.gap-2 button:nth-child(2)",
+        durationMs: 400,
+      },
+      { type: "cursor-click" },
+      { type: "wait", ms: 300 },
+      // Now set the state for the store (so subsequent pages work)
+      {
+        type: "set-state",
+        action: () => {
+          useConsultationStore.getState().setSymptoms({
+            category: SymptomCategory.HEADACHE,
+            subSymptoms: ["tension_headache", "sinus_pressure"],
+            severity: 2,
+            durationDays: 1,
+          });
+        },
+      },
+    ],
     waitAfterAction: 400,
   },
   {
@@ -115,7 +254,28 @@ export const DEMO_STEPS: DemoStep[] = [
     route: "/screening",
     spotlightSelector: "main",
     spotlightPadding: 8,
-    panelPosition: "bottom-right",
+    panelPosition: "bottom",
+    microActions: [
+      { type: "wait", ms: 600 },
+      // Sweep cursor across pre-filled form sections to draw attention
+      {
+        type: "cursor-move",
+        selector: ".flex.flex-wrap.gap-2:nth-of-type(1)",
+        durationMs: 600,
+      },
+      { type: "wait", ms: 500 },
+      {
+        type: "cursor-move",
+        selector: ".flex.flex-wrap.gap-2:nth-of-type(2)",
+        durationMs: 500,
+      },
+      { type: "wait", ms: 500 },
+      {
+        type: "cursor-move",
+        selector: ".flex.flex-wrap.gap-2:nth-of-type(3)",
+        durationMs: 500,
+      },
+    ],
   },
   {
     id: "recommendation",
@@ -126,13 +286,17 @@ export const DEMO_STEPS: DemoStep[] = [
     route: "/recommendation",
     spotlightSelector: "main",
     spotlightPadding: 8,
-    panelPosition: "bottom-right",
-    action: () => {
-      const store = useConsultationStore.getState();
-      store.setPatient(sarahRecord.profile);
-      // setVitals(null) triggers the triage engine internally
-      store.setVitals(null);
-    },
+    panelPosition: "bottom",
+    microActions: [
+      {
+        type: "set-state",
+        action: () => {
+          const store = useConsultationStore.getState();
+          store.setPatient(sarahRecord.profile);
+          store.setVitals(null);
+        },
+      },
+    ],
     waitAfterAction: 600,
   },
   {
@@ -144,10 +308,15 @@ export const DEMO_STEPS: DemoStep[] = [
     route: "/summary",
     spotlightSelector: "main",
     spotlightPadding: 8,
-    panelPosition: "bottom-right",
-    action: () => {
-      useConsultationStore.getState().completeConsultation();
-    },
+    panelPosition: "bottom",
+    microActions: [
+      {
+        type: "set-state",
+        action: () => {
+          useConsultationStore.getState().completeConsultation();
+        },
+      },
+    ],
     waitAfterAction: 400,
   },
 
@@ -157,14 +326,48 @@ export const DEMO_STEPS: DemoStep[] = [
     actLabel: "Act 3 — Medication Pickup",
     title: "Prescription Pickup",
     description:
-      "The same kiosk also handles medication pickup. Patients verify their identity to check prescription status — no waiting in line to ask the pharmacist.",
+      "The same kiosk also handles medication pickup. Watch as the patient verifies their identity to check prescription status — no waiting in line.",
     route: "/pickup",
     spotlightSelector: "main",
     spotlightPadding: 8,
-    panelPosition: "bottom-right",
-    action: () => {
-      usePickupStore.getState().resetPickup();
-    },
+    panelPosition: "bottom",
+    microActions: [
+      {
+        type: "set-state",
+        action: () => {
+          usePickupStore.getState().resetPickup();
+        },
+      },
+      { type: "wait", ms: 800 },
+      { type: "cursor-move", selector: "input[type='tel']", durationMs: 600 },
+      { type: "cursor-click" },
+      {
+        type: "type-into",
+        selector: "input[type='tel']",
+        value: "555-100-1001",
+        durationMs: 1200,
+      },
+      { type: "wait", ms: 400 },
+      {
+        type: "cursor-move",
+        selector: "input[type='date']",
+        durationMs: 500,
+      },
+      { type: "cursor-click" },
+      {
+        type: "type-into",
+        selector: "input[type='date']",
+        value: "1990-05-15",
+        durationMs: 600,
+      },
+      { type: "wait", ms: 400 },
+      {
+        type: "cursor-move",
+        selector: "button:has(.lucide-search)",
+        durationMs: 500,
+      },
+      { type: "cursor-click" },
+    ],
     waitAfterAction: 300,
   },
   {
@@ -176,12 +379,17 @@ export const DEMO_STEPS: DemoStep[] = [
     route: "/pickup/result",
     spotlightSelector: "main",
     spotlightPadding: 8,
-    panelPosition: "bottom-right",
-    action: () => {
-      usePickupStore
-        .getState()
-        .verifyForPickup(sarahRecord.phone, sarahRecord.dateOfBirth);
-    },
+    panelPosition: "bottom",
+    microActions: [
+      {
+        type: "set-state",
+        action: () => {
+          usePickupStore
+            .getState()
+            .verifyForPickup(sarahRecord.phone, sarahRecord.dateOfBirth);
+        },
+      },
+    ],
     waitAfterAction: 500,
   },
 
@@ -195,11 +403,45 @@ export const DEMO_STEPS: DemoStep[] = [
     route: "/pharmacist/dashboard",
     spotlightSelector: ".space-y-6 > .grid:first-of-type",
     spotlightPadding: 12,
-    panelPosition: "bottom-right",
-    action: () => {
-      useConsultationStore.getState().resetKiosk();
-      useAuthStore.getState().login("Dr. Jane Smith", "demo");
-    },
+    panelPosition: "bottom",
+    microActions: [
+      {
+        type: "set-state",
+        action: () => {
+          useConsultationStore.getState().resetKiosk();
+          useAuthStore.getState().login("Dr. Jane Smith", "demo");
+        },
+      },
+      { type: "wait", ms: 600 },
+      // Sweep across stat cards
+      {
+        type: "cursor-move",
+        selector: ".space-y-6 > .grid:first-of-type > :nth-child(1)",
+        durationMs: 500,
+      },
+      { type: "cursor-click" },
+      { type: "wait", ms: 400 },
+      {
+        type: "cursor-move",
+        selector: ".space-y-6 > .grid:first-of-type > :nth-child(2)",
+        durationMs: 400,
+      },
+      { type: "cursor-click" },
+      { type: "wait", ms: 400 },
+      {
+        type: "cursor-move",
+        selector: ".space-y-6 > .grid:first-of-type > :nth-child(3)",
+        durationMs: 400,
+      },
+      { type: "cursor-click" },
+      { type: "wait", ms: 400 },
+      {
+        type: "cursor-move",
+        selector: ".space-y-6 > .grid:first-of-type > :nth-child(4)",
+        durationMs: 400,
+      },
+      { type: "cursor-click" },
+    ],
     waitAfterAction: 500,
   },
   {
@@ -222,7 +464,7 @@ export const DEMO_STEPS: DemoStep[] = [
     route: "/pharmacist/consultations/c-002",
     spotlightSelector: ".lg\\:col-span-2",
     spotlightPadding: 8,
-    panelPosition: "bottom-right",
+    panelPosition: "bottom",
     waitAfterAction: 300,
   },
   {

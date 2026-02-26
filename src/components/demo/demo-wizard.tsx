@@ -9,20 +9,51 @@ import {
 } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useDemoStore } from "@/stores/demo-store";
-import { DEMO_STEPS, type DemoStep } from "./demo-steps";
+import { DEMO_STEPS, type DemoStep, type MicroAction } from "./demo-steps";
 import {
   ChevronLeft,
   ChevronRight,
   X,
-  Play,
   Presentation,
+  PanelBottom,
+  LayoutGrid,
+  MousePointer2,
 } from "lucide-react";
+
+// =============================================================================
+// UTILITIES
+// =============================================================================
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function waitForElement(
+  selector: string,
+  timeout = 3000
+): Promise<Element | null> {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const el = document.querySelector(selector);
+    if (el) return el;
+    await sleep(50);
+  }
+  return null;
+}
+
+function getElementCenter(el: Element): { x: number; y: number } {
+  const r = el.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}
+
+function getElementInputStart(el: Element): { x: number; y: number } {
+  const r = el.getBoundingClientRect();
+  return { x: r.left + 24, y: r.top + r.height / 2 };
+}
 
 // =============================================================================
 // TYPEWRITER HOOK
 // =============================================================================
 
-function useTypewriter(text: string, speed = 16) {
+function useTypewriter(text: string, speed = 14) {
   const [displayed, setDisplayed] = useState("");
   const [done, setDone] = useState(false);
 
@@ -91,14 +122,9 @@ function useSpotlightRect(
       }
     };
 
-    // Initial measurement after a short delay for rendering
     const initialTimer = setTimeout(measure, 100);
-
-    // Re-measure on scroll/resize
     window.addEventListener("scroll", measure, true);
     window.addEventListener("resize", measure);
-
-    // Periodic re-measure for dynamic content
     const interval = setInterval(measure, 500);
 
     return () => {
@@ -124,7 +150,6 @@ function SpotlightOverlay({
   padding?: number;
 }) {
   if (!rect) {
-    // Full dimmed overlay, no cutout
     return (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px] demo-fade-in" />
     );
@@ -138,7 +163,6 @@ function SpotlightOverlay({
     height: rect.height + p * 2,
   };
 
-  // Build clip-path polygon with evenodd — outer rect (clockwise) + inner cutout (counter-clockwise)
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const clipPath = `polygon(
@@ -153,20 +177,17 @@ function SpotlightOverlay({
 
   return (
     <>
-      {/* Dimmed overlay with cutout */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-[2px] demo-fade-in"
+        className="fixed inset-0 bg-black/60 backdrop-blur-[2px] demo-fade-in demo-spotlight-transition"
         style={{ clipPath }}
       />
-      {/* Pulsing ring around highlighted area */}
       <div
-        className="fixed rounded-xl demo-ring-pulse pointer-events-none"
+        className="fixed rounded-2xl demo-ring-pulse pointer-events-none"
         style={{
           top: cutout.top,
           left: cutout.left,
           width: cutout.width,
           height: cutout.height,
-          boxShadow: "0 0 0 3px rgba(14, 165, 233, 0.6)",
         }}
       />
     </>
@@ -174,82 +195,149 @@ function SpotlightOverlay({
 }
 
 // =============================================================================
-// NARRATION PANEL COMPONENT
+// DEMO CURSOR COMPONENT
 // =============================================================================
 
-function NarrationPanel({
+function DemoCursor({
+  position,
+  cursorState,
+  ripples,
+}: {
+  position: { x: number; y: number } | null;
+  cursorState: string;
+  ripples: Array<{ id: number; x: number; y: number }>;
+}) {
+  if (!position) return null;
+
+  return (
+    <div className="fixed inset-0 z-[103] pointer-events-none">
+      {/* Ripple effects */}
+      {ripples.map((ripple) => (
+        <div
+          key={ripple.id}
+          className="demo-cursor-ripple"
+          style={{ left: ripple.x, top: ripple.y }}
+        />
+      ))}
+
+      {/* Cursor icon */}
+      <div
+        className="absolute"
+        style={{
+          left: position.x,
+          top: position.y,
+          transition:
+            cursorState === "moving"
+              ? "left 0.5s cubic-bezier(0.4, 0, 0.2, 1), top 0.5s cubic-bezier(0.4, 0, 0.2, 1)"
+              : "none",
+          filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.3))",
+          transform: cursorState === "clicking" ? "scale(0.85)" : "scale(1)",
+        }}
+      >
+        {/* SVG cursor pointer */}
+        <svg
+          width="28"
+          height="28"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M5 3L19 12L12 13L9 20L5 3Z"
+            fill="white"
+            stroke="#1e293b"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+        </svg>
+        {/* Glow effect */}
+        <div
+          className="absolute -inset-2 rounded-full opacity-40"
+          style={{
+            background:
+              "radial-gradient(circle, rgba(14,165,233,0.4) 0%, transparent 70%)",
+          }}
+        />
+        {/* Typing indicator */}
+        {cursorState === "typing" && (
+          <div
+            className="absolute left-7 top-2 w-0.5 h-5 bg-sky-400"
+            style={{ animation: "demoCursorBlink 0.8s infinite" }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// CINEMATIC NARRATION BAR (Bottom Bar Style)
+// =============================================================================
+
+function CinematicNarrationBar({
   step,
-  spotlightRect,
   stepIndex,
   totalSteps,
   onNext,
   onPrev,
   onExit,
+  onToggleStyle,
 }: {
   step: DemoStep;
-  spotlightRect: SpotlightRect | null;
   stepIndex: number;
   totalSteps: number;
   onNext: () => void;
   onPrev: () => void;
   onExit: () => void;
+  onToggleStyle: () => void;
 }) {
-  const { displayed, done, skip } = useTypewriter(step.description, 14);
+  const { displayed, done, skip } = useTypewriter(step.description, 12);
   const isLast = stepIndex === totalSteps - 1;
   const isFirst = stepIndex === 0;
 
-  // Determine panel position based on step config or spotlight location
-  const position = step.panelPosition || "bottom-right";
-
-  const positionClasses: Record<string, string> = {
-    center: "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-lg",
-    "bottom-right": "bottom-28 right-8 max-w-md",
-    "bottom-left": "bottom-28 left-8 max-w-md",
-    "top-right": "top-8 right-8 max-w-md",
-    "top-left": "top-8 left-8 max-w-md",
-  };
-
   return (
     <div
-      className={`fixed ${positionClasses[position]} z-[102] demo-panel-in`}
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-4xl z-[102] demo-bar-in"
       key={step.id}
     >
-      <div className="bg-slate-900/95 backdrop-blur-xl text-white rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
+      <div className="relative bg-gradient-to-r from-slate-900/98 via-slate-800/98 to-slate-900/98 backdrop-blur-2xl text-white rounded-2xl shadow-2xl border border-white/15 overflow-hidden demo-narration-accent">
         {/* Act Badge + Step Counter */}
-        <div className="flex items-center justify-between px-5 pt-4 pb-1">
+        <div className="flex items-center justify-between px-8 pt-5 pb-1">
           {step.actLabel && (
-            <span className="text-xs font-semibold text-sky-400 uppercase tracking-wider">
+            <span className="text-sm font-semibold text-sky-400 uppercase tracking-widest">
               {step.actLabel}
             </span>
           )}
-          <span className="text-xs text-slate-400 font-mono ml-auto">
+          <span className="text-sm text-slate-400 font-mono ml-auto">
             {stepIndex + 1} / {totalSteps}
           </span>
         </div>
 
         {/* Title */}
-        <div className="px-5 pb-2">
-          <h2 className="text-xl font-bold leading-tight">{step.title}</h2>
+        <div className="px-8 pb-2">
+          <h2 className="text-2xl md:text-3xl font-bold leading-tight tracking-tight">
+            {step.title}
+          </h2>
         </div>
 
         {/* Description with typewriter */}
-        <div className="px-5 pb-4">
+        <div className="px-8 pb-5">
           <p
-            className="text-sm text-slate-300 leading-relaxed min-h-[3rem] cursor-pointer"
+            className="text-base md:text-lg text-slate-200 leading-relaxed min-h-[3.5rem] cursor-pointer"
             onClick={() => !done && skip()}
           >
             {displayed}
             {!done && (
-              <span className="inline-block w-0.5 h-4 bg-sky-400 ml-0.5 animate-pulse align-text-bottom" />
+              <span className="inline-block w-0.5 h-5 bg-sky-400 ml-0.5 animate-pulse align-text-bottom" />
             )}
           </p>
         </div>
 
         {/* Progress Bar */}
-        <div className="px-5 pb-3">
-          <div className="h-1 bg-slate-700 rounded-full overflow-hidden">
+        <div className="px-8 pb-3">
+          <div className="h-1.5 bg-slate-700/80 rounded-full overflow-hidden">
             <div
-              className="h-full bg-sky-400 rounded-full transition-all duration-500"
+              className="h-full bg-gradient-to-r from-sky-400 to-sky-500 rounded-full transition-all duration-500"
               style={{
                 width: `${((stepIndex + 1) / totalSteps) * 100}%`,
               }}
@@ -258,19 +346,28 @@ function NarrationPanel({
         </div>
 
         {/* Controls */}
-        <div className="flex items-center justify-between px-5 pb-4">
-          <button
-            onClick={onExit}
-            className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
-          >
-            Exit Demo
-          </button>
+        <div className="flex items-center justify-between px-8 pb-5">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onExit}
+              className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              Exit Demo
+            </button>
+            <button
+              onClick={onToggleStyle}
+              className="text-slate-500 hover:text-slate-300 transition-colors p-1 rounded"
+              title="Switch panel style"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+          </div>
 
           <div className="flex items-center gap-2">
             {!isFirst && (
               <button
                 onClick={onPrev}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+                className="flex items-center gap-1 px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Back
@@ -278,7 +375,7 @@ function NarrationPanel({
             )}
             <button
               onClick={onNext}
-              className="flex items-center gap-1 px-4 py-1.5 text-sm font-medium bg-sky-500 hover:bg-sky-400 text-white rounded-lg transition-colors"
+              className="flex items-center gap-1 px-5 py-2 text-sm font-medium bg-sky-500 hover:bg-sky-400 text-white rounded-lg transition-colors"
             >
               {isLast ? (
                 "Finish"
@@ -295,7 +392,7 @@ function NarrationPanel({
 
       {/* Keyboard hint */}
       <div className="text-center mt-2">
-        <span className="text-[10px] text-slate-400">
+        <span className="text-xs text-slate-400">
           Arrow keys or Space to navigate &middot; Esc to exit
         </span>
       </div>
@@ -304,89 +401,311 @@ function NarrationPanel({
 }
 
 // =============================================================================
-// SVG ARROW COMPONENT
+// FLOATING NARRATION CARD (Enhanced Card Style)
 // =============================================================================
 
-function DemoArrow({
-  spotlightRect,
-  panelPosition,
+function FloatingNarrationCard({
+  step,
+  stepIndex,
+  totalSteps,
+  onNext,
+  onPrev,
+  onExit,
+  onToggleStyle,
 }: {
-  spotlightRect: SpotlightRect | null;
-  panelPosition?: string;
+  step: DemoStep;
+  stepIndex: number;
+  totalSteps: number;
+  onNext: () => void;
+  onPrev: () => void;
+  onExit: () => void;
+  onToggleStyle: () => void;
 }) {
-  if (!spotlightRect || panelPosition === "center") return null;
+  const { displayed, done, skip } = useTypewriter(step.description, 12);
+  const isLast = stepIndex === totalSteps - 1;
+  const isFirst = stepIndex === 0;
 
-  // Calculate arrow from spotlight center to approximate panel edge
-  const spotCenterX = spotlightRect.left + spotlightRect.width / 2;
-  const spotCenterY = spotlightRect.top + spotlightRect.height / 2;
+  const position = step.panelPosition || "bottom-right";
 
-  let panelX: number;
-  let panelY: number;
-
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-
-  switch (panelPosition) {
-    case "bottom-right":
-      panelX = vw - 220;
-      panelY = vh - 200;
-      break;
-    case "bottom-left":
-      panelX = 220;
-      panelY = vh - 200;
-      break;
-    case "top-right":
-      panelX = vw - 220;
-      panelY = 120;
-      break;
-    case "top-left":
-      panelX = 220;
-      panelY = 120;
-      break;
-    default:
-      return null;
-  }
-
-  // Only draw if there's meaningful distance
-  const dx = panelX - spotCenterX;
-  const dy = panelY - spotCenterY;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-  if (distance < 100) return null;
-
-  // Control point for curve
-  const cpX = (spotCenterX + panelX) / 2 + dy * 0.15;
-  const cpY = (spotCenterY + panelY) / 2 - dx * 0.15;
-
-  const pathD = `M ${panelX} ${panelY} Q ${cpX} ${cpY} ${spotCenterX} ${spotCenterY}`;
+  const positionClasses: Record<string, string> = {
+    center: "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-xl",
+    bottom: "bottom-28 left-1/2 -translate-x-1/2 max-w-xl",
+    "bottom-right": "bottom-28 right-8 max-w-xl",
+    "bottom-left": "bottom-28 left-8 max-w-xl",
+    "top-right": "top-8 right-8 max-w-xl",
+    "top-left": "top-8 left-8 max-w-xl",
+  };
 
   return (
-    <svg
-      className="fixed inset-0 w-full h-full pointer-events-none z-[101]"
-      style={{ overflow: "visible" }}
+    <div
+      className={`fixed ${positionClasses[position]} z-[102] demo-panel-in`}
+      key={step.id}
     >
-      <defs>
-        <marker
-          id="demo-arrowhead"
-          markerWidth="8"
-          markerHeight="8"
-          refX="6"
-          refY="4"
-          orient="auto"
-        >
-          <path d="M 0 0 L 8 4 L 0 8 Z" fill="rgba(14, 165, 233, 0.8)" />
-        </marker>
-      </defs>
-      <path
-        d={pathD}
-        fill="none"
-        stroke="rgba(14, 165, 233, 0.5)"
-        strokeWidth="2"
-        strokeDasharray="8 4"
-        markerEnd="url(#demo-arrowhead)"
-        className="demo-arrow-draw"
-      />
-    </svg>
+      <div className="relative bg-gradient-to-br from-slate-900/98 via-slate-800/98 to-slate-900/98 backdrop-blur-2xl text-white rounded-2xl shadow-2xl border border-white/15 overflow-hidden demo-narration-accent">
+        {/* Act Badge + Step Counter */}
+        <div className="flex items-center justify-between px-6 pt-5 pb-1">
+          {step.actLabel && (
+            <span className="text-sm font-semibold text-sky-400 uppercase tracking-widest">
+              {step.actLabel}
+            </span>
+          )}
+          <span className="text-sm text-slate-400 font-mono ml-auto">
+            {stepIndex + 1} / {totalSteps}
+          </span>
+        </div>
+
+        {/* Title */}
+        <div className="px-6 pb-2">
+          <h2 className="text-2xl font-bold leading-tight tracking-tight">
+            {step.title}
+          </h2>
+        </div>
+
+        {/* Description with typewriter */}
+        <div className="px-6 pb-4">
+          <p
+            className="text-base text-slate-200 leading-relaxed min-h-[3rem] cursor-pointer"
+            onClick={() => !done && skip()}
+          >
+            {displayed}
+            {!done && (
+              <span className="inline-block w-0.5 h-5 bg-sky-400 ml-0.5 animate-pulse align-text-bottom" />
+            )}
+          </p>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="px-6 pb-3">
+          <div className="h-1.5 bg-slate-700/80 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-sky-400 to-sky-500 rounded-full transition-all duration-500"
+              style={{
+                width: `${((stepIndex + 1) / totalSteps) * 100}%`,
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center justify-between px-6 pb-5">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onExit}
+              className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              Exit Demo
+            </button>
+            <button
+              onClick={onToggleStyle}
+              className="text-slate-500 hover:text-slate-300 transition-colors p-1 rounded"
+              title="Switch panel style"
+            >
+              <PanelBottom className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {!isFirst && (
+              <button
+                onClick={onPrev}
+                className="flex items-center gap-1 px-3 py-2 text-sm text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Back
+              </button>
+            )}
+            <button
+              onClick={onNext}
+              className="flex items-center gap-1 px-5 py-2 text-sm font-medium bg-sky-500 hover:bg-sky-400 text-white rounded-lg transition-colors"
+            >
+              {isLast ? (
+                "Finish"
+              ) : (
+                <>
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Keyboard hint */}
+      <div className="text-center mt-2">
+        <span className="text-xs text-slate-400">
+          Arrow keys or Space to navigate &middot; Esc to exit
+        </span>
+      </div>
+    </div>
   );
+}
+
+// =============================================================================
+// CENTER PANEL (for welcome/closing steps)
+// =============================================================================
+
+function CenterPanel({
+  step,
+  stepIndex,
+  totalSteps,
+  onNext,
+  onPrev,
+  onExit,
+  onToggleStyle,
+}: {
+  step: DemoStep;
+  stepIndex: number;
+  totalSteps: number;
+  onNext: () => void;
+  onPrev: () => void;
+  onExit: () => void;
+  onToggleStyle: () => void;
+}) {
+  const { displayed, done, skip } = useTypewriter(step.description, 10);
+  const isLast = stepIndex === totalSteps - 1;
+  const isFirst = stepIndex === 0;
+
+  return (
+    <div
+      className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-3rem)] max-w-2xl z-[102] demo-panel-in"
+      key={step.id}
+    >
+      <div className="relative bg-gradient-to-br from-slate-900/98 via-slate-800/98 to-slate-900/98 backdrop-blur-2xl text-white rounded-3xl shadow-2xl border border-white/15 overflow-hidden demo-narration-accent">
+        {/* Act Badge */}
+        <div className="flex items-center justify-between px-10 pt-8 pb-2">
+          {step.actLabel && (
+            <span className="text-sm font-semibold text-sky-400 uppercase tracking-widest">
+              {step.actLabel}
+            </span>
+          )}
+          <span className="text-sm text-slate-400 font-mono ml-auto">
+            {stepIndex + 1} / {totalSteps}
+          </span>
+        </div>
+
+        {/* Title */}
+        <div className="px-10 pb-3 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold leading-tight tracking-tight">
+            {step.title}
+          </h2>
+        </div>
+
+        {/* Description */}
+        <div className="px-10 pb-6 text-center">
+          <p
+            className="text-lg md:text-xl text-slate-200 leading-relaxed min-h-[4rem] cursor-pointer"
+            onClick={() => !done && skip()}
+          >
+            {displayed}
+            {!done && (
+              <span className="inline-block w-0.5 h-6 bg-sky-400 ml-0.5 animate-pulse align-text-bottom" />
+            )}
+          </p>
+        </div>
+
+        {/* Progress */}
+        <div className="px-10 pb-4">
+          <div className="h-1.5 bg-slate-700/80 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-sky-400 to-sky-500 rounded-full transition-all duration-500"
+              style={{
+                width: `${((stepIndex + 1) / totalSteps) * 100}%`,
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center justify-between px-10 pb-8">
+          <button
+            onClick={onExit}
+            className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            Exit Demo
+          </button>
+
+          <div className="flex items-center gap-3">
+            {!isFirst && (
+              <button
+                onClick={onPrev}
+                className="flex items-center gap-1 px-4 py-2 text-sm text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Back
+              </button>
+            )}
+            <button
+              onClick={onNext}
+              className="flex items-center gap-1 px-6 py-2.5 text-base font-medium bg-sky-500 hover:bg-sky-400 text-white rounded-xl transition-colors"
+            >
+              {isLast ? (
+                "Finish"
+              ) : (
+                <>
+                  Next
+                  <ChevronRight className="w-5 h-5" />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// MICRO-ACTION EXECUTOR
+// =============================================================================
+
+async function typeIntoInput(
+  el: HTMLInputElement,
+  value: string,
+  durationMs: number,
+  shouldSkip: () => boolean
+) {
+  el.focus();
+  el.classList.add("demo-field-glow");
+
+  const nativeSetter = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype,
+    "value"
+  )?.set;
+
+  if (!nativeSetter) {
+    // Fallback: set value directly
+    el.value = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.classList.remove("demo-field-glow");
+    return;
+  }
+
+  // For date inputs, set the full value at once
+  if (el.type === "date") {
+    nativeSetter.call(el, value);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    await sleep(300);
+    el.classList.remove("demo-field-glow");
+    return;
+  }
+
+  // For text inputs, type char by char
+  const charDelay = Math.max(30, durationMs / value.length);
+  for (let i = 0; i < value.length; i++) {
+    if (shouldSkip()) {
+      nativeSetter.call(el, value);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      break;
+    }
+    const partial = value.slice(0, i + 1);
+    nativeSetter.call(el, partial);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(charDelay);
+  }
+
+  el.classList.remove("demo-field-glow");
 }
 
 // =============================================================================
@@ -399,15 +718,29 @@ function DemoWizardOverlay() {
   const {
     currentStepIndex,
     isTransitioning,
+    isMicroActionPlaying,
+    skipMicroActions,
+    panelStyle,
+    cursorPosition,
+    cursorState,
     nextStep,
     prevStep,
     stopDemo,
     setTransitioning,
+    setMicroActionPlaying,
+    clearSkipRequest,
+    togglePanelStyle,
+    setCursorPosition,
+    setCursorState,
   } = useDemoStore();
 
   const step = DEMO_STEPS[currentStepIndex];
   const totalSteps = DEMO_STEPS.length;
   const prevStepIndexRef = useRef(currentStepIndex);
+  const [ripples, setRipples] = useState<
+    Array<{ id: number; x: number; y: number }>
+  >([]);
+  const rippleIdRef = useRef(0);
 
   // Spotlight measurement
   const spotlightRect = useSpotlightRect(
@@ -416,10 +749,149 @@ function DemoWizardOverlay() {
     currentStepIndex
   );
 
+  // Add ripple effect
+  const addRipple = useCallback(
+    (x: number, y: number) => {
+      const id = ++rippleIdRef.current;
+      setRipples((prev) => [...prev, { id, x, y }]);
+      setTimeout(() => {
+        setRipples((prev) => prev.filter((r) => r.id !== id));
+      }, 600);
+    },
+    []
+  );
+
+  // Execute micro-actions for a step
+  const executeMicroActions = useCallback(
+    async (actions: MicroAction[]) => {
+      setMicroActionPlaying(true);
+      clearSkipRequest();
+
+      const shouldSkip = () => useDemoStore.getState().skipMicroActions;
+
+      for (const action of actions) {
+        if (shouldSkip()) {
+          // Fast-forward: execute remaining set-state actions silently
+          if (action.type === "set-state") {
+            try {
+              action.action();
+            } catch {
+              // silently continue
+            }
+          }
+          continue;
+        }
+
+        switch (action.type) {
+          case "set-state": {
+            try {
+              action.action();
+            } catch {
+              // silently continue
+            }
+            await sleep(100);
+            break;
+          }
+
+          case "wait": {
+            if (!shouldSkip()) await sleep(action.ms);
+            break;
+          }
+
+          case "cursor-move": {
+            const el = await waitForElement(action.selector);
+            if (el) {
+              setCursorState("moving");
+              const isInput =
+                el instanceof HTMLInputElement ||
+                el instanceof HTMLTextAreaElement;
+              const pos = isInput
+                ? getElementInputStart(el)
+                : getElementCenter(el);
+              setCursorPosition(pos);
+              await sleep(action.durationMs ?? 500);
+            }
+            setCursorState("idle");
+            break;
+          }
+
+          case "cursor-click": {
+            const pos = useDemoStore.getState().cursorPosition;
+            if (pos) {
+              setCursorState("clicking");
+              addRipple(pos.x, pos.y);
+              // Click the element under the cursor
+              const elUnder = document.elementFromPoint(pos.x, pos.y);
+              if (elUnder) {
+                (elUnder as HTMLElement).click();
+              }
+              await sleep(200);
+              setCursorState("idle");
+            }
+            break;
+          }
+
+          case "type-into": {
+            const el = await waitForElement(action.selector);
+            if (el && el instanceof HTMLInputElement) {
+              setCursorState("typing");
+              await typeIntoInput(
+                el,
+                action.value,
+                action.durationMs ?? 1000,
+                shouldSkip
+              );
+              setCursorState("idle");
+            }
+            break;
+          }
+
+          case "select-button": {
+            const el = await waitForElement(action.selector);
+            if (el) {
+              setCursorState("moving");
+              const pos = getElementCenter(el);
+              setCursorPosition(pos);
+              await sleep(400);
+              setCursorState("clicking");
+              addRipple(pos.x, pos.y);
+              (el as HTMLElement).click();
+              await sleep(200);
+              setCursorState("idle");
+            }
+            break;
+          }
+
+          case "spotlight": {
+            // Spotlight updates are handled by the step's spotlightSelector
+            // This is for mid-step spotlight changes
+            break;
+          }
+        }
+      }
+
+      // Hide cursor after micro-actions complete
+      setCursorPosition(null);
+      setCursorState("idle");
+      setMicroActionPlaying(false);
+      clearSkipRequest();
+    },
+    [
+      setMicroActionPlaying,
+      clearSkipRequest,
+      setCursorState,
+      setCursorPosition,
+      addRipple,
+    ]
+  );
+
   // Execute step action and navigation
   useEffect(() => {
     if (!step) return;
-    if (prevStepIndexRef.current === currentStepIndex && currentStepIndex !== 0)
+    if (
+      prevStepIndexRef.current === currentStepIndex &&
+      currentStepIndex !== 0
+    )
       return;
     prevStepIndexRef.current = currentStepIndex;
 
@@ -428,35 +900,67 @@ function DemoWizardOverlay() {
     const executeStep = async () => {
       setTransitioning(true);
 
-      // Execute action if present
-      if (step.action) {
-        try {
-          await step.action();
-        } catch {
-          // Silently continue if action fails
+      // Handle steps with microActions
+      if (step.microActions && step.microActions.length > 0) {
+        // Execute set-state actions first (before navigation)
+        const preNavActions = [];
+        const postNavActions = [];
+        let foundNonState = false;
+        for (const a of step.microActions) {
+          if (!foundNonState && a.type === "set-state") {
+            preNavActions.push(a);
+          } else {
+            foundNonState = true;
+            postNavActions.push(a);
+          }
         }
-        // Wait for state to settle
-        await new Promise((r) =>
-          setTimeout(r, step.waitAfterAction ?? 400)
-        );
+
+        // Execute pre-navigation state actions
+        for (const a of preNavActions) {
+          if (a.type === "set-state") {
+            try {
+              a.action();
+            } catch {
+              // silently continue
+            }
+          }
+        }
+
+        if (preNavActions.length > 0) {
+          await sleep(step.waitAfterAction ?? 400);
+        }
+
+        if (cancelled) return;
+
+        // Navigate if needed
+        if (step.route && pathname !== step.route) {
+          router.push(step.route);
+          await sleep(600);
+        }
+
+        if (cancelled) return;
+        await sleep(200);
+
+        if (cancelled) return;
+        setTransitioning(false);
+
+        // Execute remaining micro-actions (cursor moves, typing, etc.)
+        if (postNavActions.length > 0) {
+          await executeMicroActions(postNavActions);
+        }
+      } else {
+        // Legacy path: no micro-actions, just navigate
+        if (step.route && pathname !== step.route) {
+          router.push(step.route);
+          await sleep(600);
+        }
+
+        if (cancelled) return;
+        await sleep(200);
+
+        if (cancelled) return;
+        setTransitioning(false);
       }
-
-      if (cancelled) return;
-
-      // Navigate if needed
-      if (step.route && pathname !== step.route) {
-        router.push(step.route);
-        // Wait for navigation
-        await new Promise((r) => setTimeout(r, 600));
-      }
-
-      if (cancelled) return;
-
-      // Small extra delay for DOM to render
-      await new Promise((r) => setTimeout(r, 200));
-
-      if (cancelled) return;
-      setTransitioning(false);
     };
 
     executeStep();
@@ -488,6 +992,19 @@ function DemoWizardOverlay() {
 
   if (!step) return null;
 
+  // Determine which panel to render
+  const isCenter = step.panelPosition === "center";
+
+  const panelProps = {
+    step,
+    stepIndex: currentStepIndex,
+    totalSteps,
+    onNext: () => nextStep(totalSteps),
+    onPrev: prevStep,
+    onExit: stopDemo,
+    onToggleStyle: togglePanelStyle,
+  };
+
   return (
     <div className="fixed inset-0 z-[100]" style={{ pointerEvents: "auto" }}>
       {/* Spotlight overlay */}
@@ -498,7 +1015,7 @@ function DemoWizardOverlay() {
         />
       )}
 
-      {/* Transitioning state — full dim overlay */}
+      {/* Transitioning state */}
       {isTransitioning && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center">
           <div className="flex items-center gap-3 text-white/70">
@@ -508,32 +1025,31 @@ function DemoWizardOverlay() {
         </div>
       )}
 
-      {/* Arrow */}
-      {!isTransitioning && (
-        <DemoArrow
-          spotlightRect={spotlightRect}
-          panelPosition={step.panelPosition}
-        />
-      )}
+      {/* Animated Cursor */}
+      <DemoCursor
+        position={cursorPosition}
+        cursorState={cursorState}
+        ripples={ripples}
+      />
 
-      {/* Narration panel */}
+      {/* Narration panel — choose style */}
       {!isTransitioning && (
-        <NarrationPanel
-          step={step}
-          spotlightRect={spotlightRect}
-          stepIndex={currentStepIndex}
-          totalSteps={totalSteps}
-          onNext={() => nextStep(totalSteps)}
-          onPrev={prevStep}
-          onExit={stopDemo}
-        />
+        <>
+          {isCenter ? (
+            <CenterPanel {...panelProps} />
+          ) : panelStyle === "bar" ? (
+            <CinematicNarrationBar {...panelProps} />
+          ) : (
+            <FloatingNarrationCard {...panelProps} />
+          )}
+        </>
       )}
     </div>
   );
 }
 
 // =============================================================================
-// EXPORTED LOADER — conditionally renders when demo is active
+// EXPORTED LOADER
 // =============================================================================
 
 export default function DemoWizard() {

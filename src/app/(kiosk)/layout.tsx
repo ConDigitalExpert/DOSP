@@ -1,13 +1,15 @@
 "use client";
 
 import { useConsultationStore } from "@/stores/consultation-store";
+import { useDemoStore } from "@/stores/demo-store";
 import { ProgressStepper } from "@/components/kiosk/progress-stepper";
 import { IdleTimeoutModal } from "@/components/kiosk/idle-timeout-modal";
 import { KioskStep } from "@/lib/types";
 
 export default function KioskLayout({ children }: { children: React.ReactNode }) {
   const { currentStep, resetKiosk } = useConsultationStore();
-  const showTimeout = currentStep !== KioskStep.WELCOME && currentStep !== KioskStep.SUMMARY;
+  const isDemoActive = useDemoStore((s) => s.isActive);
+  const showTimeout = !isDemoActive && currentStep !== KioskStep.WELCOME && currentStep !== KioskStep.SUMMARY;
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 to-white">

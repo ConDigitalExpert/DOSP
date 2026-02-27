@@ -632,7 +632,7 @@ function DemoWizardOverlay() {
     return actions;
   }, []);
 
-  // Execute micro-actions for a step
+  // Execute micro-actions for a step — wrapped in try/finally for guaranteed cleanup
   const executeMicroActions = useCallback(
     async (actions: MicroAction[]) => {
       setMicroActionPlaying(true);
@@ -640,111 +640,116 @@ function DemoWizardOverlay() {
 
       const shouldSkip = () => useDemoStore.getState().skipMicroActions;
 
-      for (const action of actions) {
-        if (shouldSkip()) {
-          if (action.type === "set-state") {
-            try {
-              action.action();
-            } catch {
-              // silently continue
-            }
-          }
-          continue;
-        }
-
-        switch (action.type) {
-          case "set-state": {
-            try {
-              action.action();
-            } catch {
-              // silently continue
-            }
-            await sleep(100);
-            break;
-          }
-
-          case "wait": {
-            if (!shouldSkip()) await sleep(action.ms);
-            break;
-          }
-
-          case "cursor-move": {
-            const el = await waitForElement(action.selector);
-            if (el) {
-              setCursorState("moving");
-              const isInput =
-                el instanceof HTMLInputElement ||
-                el instanceof HTMLTextAreaElement;
-              const pos = isInput
-                ? getElementInputStart(el)
-                : getElementCenter(el);
-              setCursorPosition(pos);
-              await sleep(action.durationMs ?? 500);
-            }
-            setCursorState("idle");
-            break;
-          }
-
-          case "cursor-click": {
-            const pos = useDemoStore.getState().cursorPosition;
-            if (pos) {
-              setCursorState("clicking");
-              addRipple(pos.x, pos.y);
-              // Only click the actual DOM element if not visual-only
-              if (!action.visual) {
-                const elUnder = document.elementFromPoint(pos.x, pos.y);
-                if (elUnder) {
-                  (elUnder as HTMLElement).click();
-                }
+      try {
+        for (const action of actions) {
+          if (shouldSkip()) {
+            if (action.type === "set-state") {
+              try {
+                action.action();
+              } catch {
+                // silently continue
               }
-              await sleep(200);
-              setCursorState("idle");
             }
-            break;
+            continue;
           }
 
-          case "type-into": {
-            const el = await waitForElement(action.selector);
-            if (el && el instanceof HTMLInputElement) {
-              setCursorState("typing");
-              await typeIntoInput(
-                el,
-                action.value,
-                action.durationMs ?? 1000,
-                shouldSkip
-              );
-              setCursorState("idle");
+          switch (action.type) {
+            case "set-state": {
+              try {
+                action.action();
+              } catch {
+                // silently continue
+              }
+              await sleep(100);
+              break;
             }
-            break;
-          }
 
-          case "select-button": {
-            const el = await waitForElement(action.selector);
-            if (el) {
-              setCursorState("moving");
-              const pos = getElementCenter(el);
-              setCursorPosition(pos);
-              await sleep(400);
-              setCursorState("clicking");
-              addRipple(pos.x, pos.y);
-              (el as HTMLElement).click();
-              await sleep(200);
-              setCursorState("idle");
+            case "wait": {
+              if (!shouldSkip()) await sleep(action.ms);
+              break;
             }
-            break;
-          }
 
-          case "spotlight": {
-            break;
+            case "cursor-move": {
+              const el = await waitForElement(action.selector);
+              if (el) {
+                setCursorState("moving");
+                const isInput =
+                  el instanceof HTMLInputElement ||
+                  el instanceof HTMLTextAreaElement;
+                const pos = isInput
+                  ? getElementInputStart(el)
+                  : getElementCenter(el);
+                setCursorPosition(pos);
+                await sleep(action.durationMs ?? 500);
+              }
+              setCursorState("idle");
+              break;
+            }
+
+            case "cursor-click": {
+              const pos = useDemoStore.getState().cursorPosition;
+              if (pos) {
+                setCursorState("clicking");
+                addRipple(pos.x, pos.y);
+                // Only click the actual DOM element if not visual-only
+                if (!action.visual) {
+                  const elUnder = document.elementFromPoint(pos.x, pos.y);
+                  if (elUnder) {
+                    (elUnder as HTMLElement).click();
+                  }
+                }
+                await sleep(200);
+                setCursorState("idle");
+              }
+              break;
+            }
+
+            case "type-into": {
+              const el = await waitForElement(action.selector);
+              if (el && el instanceof HTMLInputElement) {
+                setCursorState("typing");
+                await typeIntoInput(
+                  el,
+                  action.value,
+                  action.durationMs ?? 1000,
+                  shouldSkip
+                );
+                setCursorState("idle");
+              }
+              break;
+            }
+
+            case "select-button": {
+              const el = await waitForElement(action.selector);
+              if (el) {
+                setCursorState("moving");
+                const pos = getElementCenter(el);
+                setCursorPosition(pos);
+                await sleep(400);
+                setCursorState("clicking");
+                addRipple(pos.x, pos.y);
+                (el as HTMLElement).click();
+                await sleep(200);
+                setCursorState("idle");
+              }
+              break;
+            }
+
+            case "spotlight": {
+              break;
+            }
           }
         }
+      } catch (err) {
+        // Log but don't crash — allow cleanup to proceed
+        console.warn("Demo micro-action error:", err);
+      } finally {
+        // Always clean up cursor and playback state
+        setCursorPosition(null);
+        setCursorState("idle");
+        setMicroActionPlaying(false);
+        clearSkipRequest();
       }
-
-      // Hide cursor after micro-actions complete
-      setCursorPosition(null);
-      setCursorState("idle");
-      setMicroActionPlaying(false);
-      clearSkipRequest();
     },
     [
       setMicroActionPlaying,
@@ -773,7 +778,9 @@ function DemoWizardOverlay() {
     }
   }, [executeMicroActions, getPostNavActions, nextStep, totalSteps]);
 
-  // Step entry — ONLY navigate + run pre-nav set-state, then show bar
+  // Step entry — ONLY navigate + run pre-nav set-state, then show bar.
+  // Uses try/finally + direct zustand state checks to guarantee setTransitioning(false)
+  // is always called (fixes bug where cancelled flag left transitioning stuck).
   useEffect(() => {
     if (!step) return;
     if (
@@ -784,55 +791,68 @@ function DemoWizardOverlay() {
     prevStepIndexRef.current = currentStepIndex;
     animationsPlayedRef.current = false; // reset for new step
 
-    let cancelled = false;
+    const myStepIndex = currentStepIndex;
+    const isStillCurrent = () =>
+      useDemoStore.getState().currentStepIndex === myStepIndex;
 
     const executeStep = async () => {
       setTransitioning(true);
 
-      // Execute leading set-state actions (needed before navigation)
-      if (step.microActions) {
-        for (const a of step.microActions) {
-          if (a.type === "set-state") {
-            try {
-              a.action();
-            } catch {
-              // silently continue
+      try {
+        // Execute leading set-state actions (needed before navigation)
+        if (step.microActions) {
+          for (const a of step.microActions) {
+            if (a.type === "set-state") {
+              try {
+                a.action();
+              } catch {
+                // silently continue
+              }
+            } else {
+              break; // stop at first non-set-state
             }
-          } else {
-            break; // stop at first non-set-state
+          }
+          // Wait for state to settle
+          const hasPreNav = step.microActions[0]?.type === "set-state";
+          if (hasPreNav) {
+            await sleep(step.waitAfterAction ?? 400);
           }
         }
-        // Wait for state to settle
-        const hasPreNav = step.microActions[0]?.type === "set-state";
-        if (hasPreNav) {
-          await sleep(step.waitAfterAction ?? 400);
+
+        if (!isStillCurrent()) return;
+
+        // Navigate if needed
+        if (step.route && pathname !== step.route) {
+          router.push(step.route);
+          await sleep(600);
+        }
+
+        if (!isStillCurrent()) return;
+        await sleep(200);
+      } finally {
+        // Always clear transitioning if we're still the active step
+        if (isStillCurrent()) {
+          setTransitioning(false);
         }
       }
-
-      if (cancelled) return;
-
-      // Navigate if needed
-      if (step.route && pathname !== step.route) {
-        router.push(step.route);
-        await sleep(600);
-      }
-
-      if (cancelled) return;
-      await sleep(200);
-
-      if (cancelled) return;
-      setTransitioning(false);
       // Bar now appears — user reads the description
       // Animations wait for user to click Next
     };
 
     executeStep();
-
-    return () => {
-      cancelled = true;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStepIndex]);
+
+  // Safeguard: if transitioning stays stuck for more than 4 seconds, force-clear it
+  useEffect(() => {
+    if (!isTransitioning) return;
+    const timeout = setTimeout(() => {
+      if (useDemoStore.getState().isTransitioning) {
+        setTransitioning(false);
+      }
+    }, 4000);
+    return () => clearTimeout(timeout);
+  }, [isTransitioning, setTransitioning]);
 
   // Keyboard controls
   useEffect(() => {

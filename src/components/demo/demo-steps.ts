@@ -12,7 +12,7 @@ export type MicroAction =
   | { type: "set-state"; action: () => void }
   | { type: "wait"; ms: number }
   | { type: "cursor-move"; selector: string; durationMs?: number }
-  | { type: "cursor-click"; selector?: string }
+  | { type: "cursor-click"; selector?: string; visual?: boolean }
   | { type: "type-into"; selector: string; value: string; durationMs?: number }
   | { type: "select-button"; selector: string }
   | { type: "spotlight"; selector: string; padding?: number };
@@ -75,7 +75,7 @@ export const DEMO_STEPS: DemoStep[] = [
           ".grid.grid-cols-1.md\\:grid-cols-3.gap-6.mt-12 > :nth-child(1)",
         durationMs: 600,
       },
-      { type: "cursor-click" },
+      { type: "cursor-click", visual: true },
       { type: "wait", ms: 500 },
       {
         type: "cursor-move",
@@ -83,7 +83,7 @@ export const DEMO_STEPS: DemoStep[] = [
           ".grid.grid-cols-1.md\\:grid-cols-3.gap-6.mt-12 > :nth-child(2)",
         durationMs: 500,
       },
-      { type: "cursor-click" },
+      { type: "cursor-click", visual: true },
       { type: "wait", ms: 500 },
       {
         type: "cursor-move",
@@ -91,7 +91,7 @@ export const DEMO_STEPS: DemoStep[] = [
           ".grid.grid-cols-1.md\\:grid-cols-3.gap-6.mt-12 > :nth-child(3)",
         durationMs: 500,
       },
-      { type: "cursor-click" },
+      { type: "cursor-click", visual: true },
     ],
   },
   {
@@ -127,8 +127,9 @@ export const DEMO_STEPS: DemoStep[] = [
         },
       },
       { type: "wait", ms: 800 },
+      // Type phone number (works reliably on all platforms)
       { type: "cursor-move", selector: "input[type='tel']", durationMs: 600 },
-      { type: "cursor-click" },
+      { type: "cursor-click", visual: true },
       {
         type: "type-into",
         selector: "input[type='tel']",
@@ -136,12 +137,13 @@ export const DEMO_STEPS: DemoStep[] = [
         durationMs: 1400,
       },
       { type: "wait", ms: 400 },
+      // Move to date field — visual click only (avoids native date picker)
       {
         type: "cursor-move",
         selector: "input[type='date']",
         durationMs: 500,
       },
-      { type: "cursor-click" },
+      { type: "cursor-click", visual: true },
       {
         type: "type-into",
         selector: "input[type='date']",
@@ -149,12 +151,21 @@ export const DEMO_STEPS: DemoStep[] = [
         durationMs: 600,
       },
       { type: "wait", ms: 500 },
+      // Move to submit button — visual click, then set-state to actually verify
       {
         type: "cursor-move",
         selector: "button:has(.lucide-search)",
         durationMs: 500,
       },
-      { type: "cursor-click" },
+      { type: "cursor-click", visual: true },
+      {
+        type: "set-state",
+        action: () => {
+          useConsultationStore
+            .getState()
+            .setVerifiedPatient(sarahRecord.id, sarahRecord.profile);
+        },
+      },
     ],
     waitAfterAction: 400,
   },
@@ -167,17 +178,6 @@ export const DEMO_STEPS: DemoStep[] = [
     route: "/verify",
     spotlightSelector: "main",
     panelPosition: "bottom",
-    microActions: [
-      {
-        type: "set-state",
-        action: () => {
-          useConsultationStore
-            .getState()
-            .setVerifiedPatient(sarahRecord.id, sarahRecord.profile);
-        },
-      },
-    ],
-    waitAfterAction: 500,
   },
   {
     id: "symptom-triage",
@@ -339,8 +339,9 @@ export const DEMO_STEPS: DemoStep[] = [
         },
       },
       { type: "wait", ms: 800 },
+      // Type phone number
       { type: "cursor-move", selector: "input[type='tel']", durationMs: 600 },
-      { type: "cursor-click" },
+      { type: "cursor-click", visual: true },
       {
         type: "type-into",
         selector: "input[type='tel']",
@@ -348,12 +349,13 @@ export const DEMO_STEPS: DemoStep[] = [
         durationMs: 1200,
       },
       { type: "wait", ms: 400 },
+      // Date field — visual click only (avoids native date picker)
       {
         type: "cursor-move",
         selector: "input[type='date']",
         durationMs: 500,
       },
-      { type: "cursor-click" },
+      { type: "cursor-click", visual: true },
       {
         type: "type-into",
         selector: "input[type='date']",
@@ -361,12 +363,21 @@ export const DEMO_STEPS: DemoStep[] = [
         durationMs: 600,
       },
       { type: "wait", ms: 400 },
+      // Submit — visual click, then set-state to actually verify
       {
         type: "cursor-move",
         selector: "button:has(.lucide-search)",
         durationMs: 500,
       },
-      { type: "cursor-click" },
+      { type: "cursor-click", visual: true },
+      {
+        type: "set-state",
+        action: () => {
+          usePickupStore
+            .getState()
+            .verifyForPickup(sarahRecord.phone, sarahRecord.dateOfBirth);
+        },
+      },
     ],
     waitAfterAction: 300,
   },
@@ -413,34 +424,34 @@ export const DEMO_STEPS: DemoStep[] = [
         },
       },
       { type: "wait", ms: 600 },
-      // Sweep across stat cards
+      // Sweep across stat cards (visual-only clicks — no navigation)
       {
         type: "cursor-move",
         selector: ".space-y-6 > .grid:first-of-type > :nth-child(1)",
         durationMs: 500,
       },
-      { type: "cursor-click" },
+      { type: "cursor-click", visual: true },
       { type: "wait", ms: 400 },
       {
         type: "cursor-move",
         selector: ".space-y-6 > .grid:first-of-type > :nth-child(2)",
         durationMs: 400,
       },
-      { type: "cursor-click" },
+      { type: "cursor-click", visual: true },
       { type: "wait", ms: 400 },
       {
         type: "cursor-move",
         selector: ".space-y-6 > .grid:first-of-type > :nth-child(3)",
         durationMs: 400,
       },
-      { type: "cursor-click" },
+      { type: "cursor-click", visual: true },
       { type: "wait", ms: 400 },
       {
         type: "cursor-move",
         selector: ".space-y-6 > .grid:first-of-type > :nth-child(4)",
         durationMs: 400,
       },
-      { type: "cursor-click" },
+      { type: "cursor-click", visual: true },
     ],
     waitAfterAction: 500,
   },

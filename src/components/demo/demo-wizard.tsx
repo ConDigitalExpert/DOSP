@@ -521,7 +521,6 @@ async function typeIntoInput(
   durationMs: number,
   shouldSkip: () => boolean
 ) {
-  el.focus();
   el.classList.add("demo-field-glow");
 
   const nativeSetter = Object.getOwnPropertyDescriptor(
@@ -532,19 +531,24 @@ async function typeIntoInput(
   if (!nativeSetter) {
     el.value = value;
     el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
     el.classList.remove("demo-field-glow");
     return;
   }
 
-  // For date inputs, set the full value at once
+  // For date inputs — set value without focus (avoids native picker on mobile)
   if (el.type === "date") {
     nativeSetter.call(el, value);
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
+    el.blur(); // ensure no native picker opens
     await sleep(300);
     el.classList.remove("demo-field-glow");
     return;
   }
+
+  // Focus only for non-date inputs (safe — no native picker)
+  el.focus();
 
   // For text inputs, type char by char
   const charDelay = Math.max(30, durationMs / value.length);
@@ -671,9 +675,12 @@ function DemoWizardOverlay() {
             if (pos) {
               setCursorState("clicking");
               addRipple(pos.x, pos.y);
-              const elUnder = document.elementFromPoint(pos.x, pos.y);
-              if (elUnder) {
-                (elUnder as HTMLElement).click();
+              // Only click the actual DOM element if not visual-only
+              if (!action.visual) {
+                const elUnder = document.elementFromPoint(pos.x, pos.y);
+                if (elUnder) {
+                  (elUnder as HTMLElement).click();
+                }
               }
               await sleep(200);
               setCursorState("idle");

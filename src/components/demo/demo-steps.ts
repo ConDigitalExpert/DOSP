@@ -94,18 +94,6 @@ export const DEMO_STEPS: DemoStep[] = [
       { type: "cursor-click", visual: true },
     ],
   },
-  {
-    id: "safety-first",
-    actLabel: "Act 1 — The Platform",
-    title: "Safety-First Design",
-    description:
-      "Conservative by design — if in doubt, DOSP escalates to a real pharmacist. Every interaction is logged with a full audit trail for regulatory compliance.",
-    route: "/",
-    spotlightSelector:
-      ".grid.grid-cols-1.md\\:grid-cols-3.gap-6:not(.mt-12)",
-    spotlightPadding: 12,
-    panelPosition: "top-right",
-  },
 
   // ===== ACT 2: PATIENT KIOSK JOURNEY =====
   {

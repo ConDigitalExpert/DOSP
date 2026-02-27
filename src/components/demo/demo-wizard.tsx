@@ -9,13 +9,7 @@ import {
 import { useRouter, usePathname } from "next/navigation";
 import { useDemoStore } from "@/stores/demo-store";
 import { DEMO_STEPS, type DemoStep, type MicroAction } from "./demo-steps";
-import {
-  ChevronLeft,
-  ChevronRight,
-  PanelBottom,
-  LayoutGrid,
-  GripHorizontal,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Maximize2, Minimize2 } from "lucide-react";
 
 // =============================================================================
 // UTILITIES
@@ -81,58 +75,6 @@ function useTypewriter(text: string, speed = 14) {
 }
 
 // =============================================================================
-// DRAGGABLE HOOK
-// =============================================================================
-
-function useDraggable() {
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const dragging = useRef(false);
-  const dragStart = useRef({ x: 0, y: 0 });
-  const offsetStart = useRef({ x: 0, y: 0 });
-
-  // Reset offset when step changes
-  const resetOffset = useCallback(() => setOffset({ x: 0, y: 0 }), []);
-
-  const onPointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      dragging.current = true;
-      dragStart.current = { x: e.clientX, y: e.clientY };
-      offsetStart.current = { ...offset };
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
-      e.preventDefault();
-      e.stopPropagation();
-    },
-    [offset]
-  );
-
-  const onPointerMove = useCallback((e: React.PointerEvent) => {
-    if (!dragging.current) return;
-    setOffset({
-      x: offsetStart.current.x + (e.clientX - dragStart.current.x),
-      y: offsetStart.current.y + (e.clientY - dragStart.current.y),
-    });
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
-
-  const onPointerUp = useCallback((e: React.PointerEvent) => {
-    dragging.current = false;
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
-
-  return {
-    offset,
-    resetOffset,
-    dragHandleProps: {
-      onPointerDown,
-      onPointerMove,
-      onPointerUp,
-    },
-  };
-}
-
-// =============================================================================
 // SPOTLIGHT RECT HOOK
 // =============================================================================
 
@@ -188,7 +130,7 @@ function useSpotlightRect(
 }
 
 // =============================================================================
-// SPOTLIGHT OVERLAY COMPONENT
+// SPOTLIGHT OVERLAY — lighter during animations
 // =============================================================================
 
 function SpotlightOverlay({
@@ -200,13 +142,10 @@ function SpotlightOverlay({
   padding?: number;
   dimmed?: boolean;
 }) {
-  // During animations (dimmed=false): very light overlay so interactions are fully visible
-  const overlayClass = dimmed
-    ? "fixed inset-0 bg-black/40 demo-fade-in"
-    : "fixed inset-0 bg-black/15 demo-fade-in";
+  const bg = dimmed ? "bg-black/35" : "bg-black/15";
 
   if (!rect) {
-    return <div className={overlayClass} />;
+    return <div className={`fixed inset-0 ${bg} demo-fade-in`} />;
   }
 
   const p = padding;
@@ -229,14 +168,10 @@ function SpotlightOverlay({
     ${cutout.left}px ${cutout.top}px
   )`;
 
-  const overlayClipClass = dimmed
-    ? "fixed inset-0 bg-black/40 demo-fade-in demo-spotlight-transition"
-    : "fixed inset-0 bg-black/15 demo-fade-in demo-spotlight-transition";
-
   return (
     <>
       <div
-        className={overlayClipClass}
+        className={`fixed inset-0 ${bg} demo-fade-in demo-spotlight-transition`}
         style={{ clipPath }}
       />
       {dimmed && (
@@ -331,19 +266,18 @@ function DemoCursor({
 }
 
 // =============================================================================
-// CINEMATIC NARRATION BAR (Bottom Bar Style — Glass + Draggable)
+// PERSISTENT BOTTOM BAR — always visible, synced with step + animation
 // =============================================================================
 
-function CinematicNarrationBar({
+const BAR_HEIGHT = 160; // px — pinned bottom bar height
+
+function PersistentBottomBar({
   step,
   stepIndex,
   totalSteps,
   onNext,
   onPrev,
   onExit,
-  onToggleStyle,
-  dragOffset,
-  dragHandleProps,
 }: {
   step: DemoStep;
   stepIndex: number;
@@ -351,110 +285,105 @@ function CinematicNarrationBar({
   onNext: () => void;
   onPrev: () => void;
   onExit: () => void;
-  onToggleStyle: () => void;
-  dragOffset: { x: number; y: number };
-  dragHandleProps: {
-    onPointerDown: (e: React.PointerEvent) => void;
-    onPointerMove: (e: React.PointerEvent) => void;
-    onPointerUp: (e: React.PointerEvent) => void;
-  };
 }) {
   const { displayed, done, skip } = useTypewriter(step.description, 12);
   const isLast = stepIndex === totalSteps - 1;
   const isFirst = stepIndex === 0;
+  const [collapsed, setCollapsed] = useState(false);
 
   return (
     <div
-      className="fixed bottom-6 left-1/2 w-[calc(100%-3rem)] max-w-4xl z-[102] demo-bar-in"
-      key={step.id}
-      style={{
-        transform: `translateX(calc(-50% + ${dragOffset.x}px)) translateY(${dragOffset.y}px)`,
-      }}
+      className="fixed bottom-0 left-0 right-0 z-[104]"
+      style={{ height: collapsed ? 48 : BAR_HEIGHT }}
     >
-      <div className="relative demo-glass text-white rounded-2xl shadow-2xl overflow-hidden demo-narration-accent">
-        {/* Drag Handle */}
-        <div
-          className="demo-drag-handle flex items-center justify-center pt-2 pb-0"
-          {...dragHandleProps}
-        >
-          <GripHorizontal className="w-5 h-5 text-white/30" />
-        </div>
-
-        {/* Act Badge + Step Counter */}
-        <div className="flex items-center justify-between px-8 pt-2 pb-1">
-          {step.actLabel && (
-            <span className="text-sm font-semibold text-sky-400 uppercase tracking-widest demo-text-shadow-light">
-              {step.actLabel}
-            </span>
-          )}
-          <span className="text-sm text-slate-300 font-mono ml-auto demo-text-shadow-light">
-            {stepIndex + 1} / {totalSteps}
-          </span>
-        </div>
-
-        {/* Title */}
-        <div className="px-8 pb-2">
-          <h2 className="text-2xl md:text-3xl font-bold leading-tight tracking-tight demo-text-shadow">
-            {step.title}
-          </h2>
-        </div>
-
-        {/* Description with typewriter */}
-        <div className="px-8 pb-4">
-          <p
-            className="text-base md:text-lg text-slate-100 leading-relaxed min-h-[3.5rem] cursor-pointer demo-text-shadow-light"
-            onClick={() => !done && skip()}
-          >
-            {displayed}
-            {!done && (
-              <span className="inline-block w-0.5 h-5 bg-sky-400 ml-0.5 animate-pulse align-text-bottom" />
-            )}
-          </p>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="px-8 pb-3">
-          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-sky-400 to-sky-500 rounded-full transition-all duration-500"
-              style={{
-                width: `${((stepIndex + 1) / totalSteps) * 100}%`,
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Controls */}
-        <div className="flex items-center justify-between px-8 pb-4">
+      <div
+        className="h-full bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex flex-col transition-all duration-300"
+      >
+        {/* Top edge — act label + close/collapse */}
+        <div className="flex items-center justify-between px-6 pt-2 pb-0 flex-shrink-0">
           <div className="flex items-center gap-3">
+            {step.actLabel && (
+              <span className="text-xs font-bold text-sky-600 uppercase tracking-widest">
+                {step.actLabel}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors rounded"
+              title={collapsed ? "Expand" : "Minimize"}
+            >
+              {collapsed ? <Maximize2 className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}
+            </button>
             <button
               onClick={onExit}
-              className="text-sm text-white/40 hover:text-white/70 transition-colors"
+              className="p-1.5 text-slate-400 hover:text-red-500 transition-colors rounded"
+              title="Exit Demo"
             >
-              Exit Demo
-            </button>
-            <button
-              onClick={onToggleStyle}
-              className="text-white/40 hover:text-white/70 transition-colors p-1 rounded"
-              title="Switch to floating card"
-            >
-              <LayoutGrid className="w-4 h-4" />
+              <X className="w-4 h-4" />
             </button>
           </div>
+        </div>
 
-          <div className="flex items-center gap-2">
+        {/* Content — hidden when collapsed */}
+        {!collapsed && (
+          <div className="flex-1 flex items-start px-6 pt-1 pb-0 min-h-0 overflow-hidden">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-bold text-slate-900 leading-snug truncate">
+                {step.title}
+              </h2>
+              <p
+                className="text-sm text-slate-600 leading-relaxed mt-0.5 line-clamp-2 cursor-pointer"
+                onClick={() => !done && skip()}
+              >
+                {displayed}
+                {!done && (
+                  <span className="inline-block w-0.5 h-4 bg-sky-500 ml-0.5 animate-pulse align-text-bottom" />
+                )}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Bottom row — step counter + nav buttons */}
+        <div className="flex items-center justify-between px-6 py-2 flex-shrink-0 border-t border-slate-100">
+          <div className="w-20">
             {!isFirst && (
               <button
                 onClick={onPrev}
-                className="flex items-center gap-1 px-4 py-2 text-sm text-white/70 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+                className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Back
               </button>
             )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalSteps }, (_, i) => (
+                <div
+                  key={i}
+                  className={`rounded-full transition-all duration-300 ${
+                    i === stepIndex
+                      ? "w-6 h-2 bg-sky-500"
+                      : i < stepIndex
+                      ? "w-2 h-2 bg-sky-300"
+                      : "w-2 h-2 bg-slate-200"
+                  }`}
+                />
+              ))}
+            </div>
+            <span className="text-xs text-slate-400 font-mono ml-2">
+              {stepIndex + 1} of {totalSteps}
+            </span>
+          </div>
+
+          <div className="w-20 flex justify-end">
             <button
               onClick={onNext}
-              className="flex items-center gap-1 px-5 py-2 text-sm font-medium bg-sky-500/80 hover:bg-sky-500 text-white rounded-lg transition-colors"
+              className="flex items-center gap-1 px-4 py-1.5 text-sm font-semibold bg-sky-500 hover:bg-sky-600 text-white rounded-lg transition-colors"
             >
               {isLast ? (
                 "Finish"
@@ -468,187 +397,12 @@ function CinematicNarrationBar({
           </div>
         </div>
       </div>
-
-      {/* Keyboard hint */}
-      <div className="text-center mt-2">
-        <span className="text-xs text-white/30 demo-text-shadow-light">
-          Arrow keys or Space to navigate &middot; Esc to exit &middot; Drag to move
-        </span>
-      </div>
     </div>
   );
 }
 
 // =============================================================================
-// FLOATING NARRATION CARD (Glass + Draggable)
-// =============================================================================
-
-function FloatingNarrationCard({
-  step,
-  stepIndex,
-  totalSteps,
-  onNext,
-  onPrev,
-  onExit,
-  onToggleStyle,
-  dragOffset,
-  dragHandleProps,
-}: {
-  step: DemoStep;
-  stepIndex: number;
-  totalSteps: number;
-  onNext: () => void;
-  onPrev: () => void;
-  onExit: () => void;
-  onToggleStyle: () => void;
-  dragOffset: { x: number; y: number };
-  dragHandleProps: {
-    onPointerDown: (e: React.PointerEvent) => void;
-    onPointerMove: (e: React.PointerEvent) => void;
-    onPointerUp: (e: React.PointerEvent) => void;
-  };
-}) {
-  const { displayed, done, skip } = useTypewriter(step.description, 12);
-  const isLast = stepIndex === totalSteps - 1;
-  const isFirst = stepIndex === 0;
-
-  const position = step.panelPosition || "bottom-right";
-
-  const positionClasses: Record<string, string> = {
-    center: "top-1/2 left-1/2 max-w-xl",
-    bottom: "bottom-28 left-1/2 max-w-xl",
-    "bottom-right": "bottom-28 right-8 max-w-xl",
-    "bottom-left": "bottom-28 left-8 max-w-xl",
-    "top-right": "top-8 right-8 max-w-xl",
-    "top-left": "top-8 left-8 max-w-xl",
-  };
-
-  // Calculate base transform from position, then add drag offset
-  const baseTransforms: Record<string, string> = {
-    center: `translate(calc(-50% + ${dragOffset.x}px), calc(-50% + ${dragOffset.y}px))`,
-    bottom: `translate(calc(-50% + ${dragOffset.x}px), ${dragOffset.y}px)`,
-    "bottom-right": `translate(${dragOffset.x}px, ${dragOffset.y}px)`,
-    "bottom-left": `translate(${dragOffset.x}px, ${dragOffset.y}px)`,
-    "top-right": `translate(${dragOffset.x}px, ${dragOffset.y}px)`,
-    "top-left": `translate(${dragOffset.x}px, ${dragOffset.y}px)`,
-  };
-
-  return (
-    <div
-      className={`fixed ${positionClasses[position]} z-[102] demo-panel-in`}
-      key={step.id}
-      style={{ transform: baseTransforms[position] }}
-    >
-      <div className="relative demo-glass text-white rounded-2xl shadow-2xl overflow-hidden demo-narration-accent">
-        {/* Drag Handle */}
-        <div
-          className="demo-drag-handle flex items-center justify-center pt-2 pb-0"
-          {...dragHandleProps}
-        >
-          <GripHorizontal className="w-5 h-5 text-white/30" />
-        </div>
-
-        {/* Act Badge + Step Counter */}
-        <div className="flex items-center justify-between px-6 pt-2 pb-1">
-          {step.actLabel && (
-            <span className="text-sm font-semibold text-sky-400 uppercase tracking-widest demo-text-shadow-light">
-              {step.actLabel}
-            </span>
-          )}
-          <span className="text-sm text-slate-300 font-mono ml-auto demo-text-shadow-light">
-            {stepIndex + 1} / {totalSteps}
-          </span>
-        </div>
-
-        {/* Title */}
-        <div className="px-6 pb-2">
-          <h2 className="text-2xl font-bold leading-tight tracking-tight demo-text-shadow">
-            {step.title}
-          </h2>
-        </div>
-
-        {/* Description with typewriter */}
-        <div className="px-6 pb-4">
-          <p
-            className="text-base text-slate-100 leading-relaxed min-h-[3rem] cursor-pointer demo-text-shadow-light"
-            onClick={() => !done && skip()}
-          >
-            {displayed}
-            {!done && (
-              <span className="inline-block w-0.5 h-5 bg-sky-400 ml-0.5 animate-pulse align-text-bottom" />
-            )}
-          </p>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="px-6 pb-3">
-          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-sky-400 to-sky-500 rounded-full transition-all duration-500"
-              style={{
-                width: `${((stepIndex + 1) / totalSteps) * 100}%`,
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Controls */}
-        <div className="flex items-center justify-between px-6 pb-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onExit}
-              className="text-sm text-white/40 hover:text-white/70 transition-colors"
-            >
-              Exit Demo
-            </button>
-            <button
-              onClick={onToggleStyle}
-              className="text-white/40 hover:text-white/70 transition-colors p-1 rounded"
-              title="Switch to bottom bar"
-            >
-              <PanelBottom className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {!isFirst && (
-              <button
-                onClick={onPrev}
-                className="flex items-center gap-1 px-3 py-2 text-sm text-white/70 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Back
-              </button>
-            )}
-            <button
-              onClick={onNext}
-              className="flex items-center gap-1 px-5 py-2 text-sm font-medium bg-sky-500/80 hover:bg-sky-500 text-white rounded-lg transition-colors"
-            >
-              {isLast ? (
-                "Finish"
-              ) : (
-                <>
-                  Next
-                  <ChevronRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Keyboard hint */}
-      <div className="text-center mt-2">
-        <span className="text-xs text-white/30 demo-text-shadow-light">
-          Arrow keys or Space &middot; Esc to exit &middot; Drag to move
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// =============================================================================
-// CENTER PANEL (for welcome/closing — Glass + Draggable)
+// CENTER PANEL — for welcome/closing (full-screen overlay steps)
 // =============================================================================
 
 function CenterPanel({
@@ -658,8 +412,6 @@ function CenterPanel({
   onNext,
   onPrev,
   onExit,
-  dragOffset,
-  dragHandleProps,
 }: {
   step: DemoStep;
   stepIndex: number;
@@ -667,12 +419,6 @@ function CenterPanel({
   onNext: () => void;
   onPrev: () => void;
   onExit: () => void;
-  dragOffset: { x: number; y: number };
-  dragHandleProps: {
-    onPointerDown: (e: React.PointerEvent) => void;
-    onPointerMove: (e: React.PointerEvent) => void;
-    onPointerUp: (e: React.PointerEvent) => void;
-  };
 }) {
   const { displayed, done, skip } = useTypewriter(step.description, 10);
   const isLast = stepIndex === totalSteps - 1;
@@ -680,44 +426,31 @@ function CenterPanel({
 
   return (
     <div
-      className="fixed top-1/2 left-1/2 w-[calc(100%-3rem)] max-w-2xl z-[102] demo-panel-in"
+      className="fixed inset-0 z-[102] flex items-center justify-center demo-fade-in"
       key={step.id}
-      style={{
-        transform: `translate(calc(-50% + ${dragOffset.x}px), calc(-50% + ${dragOffset.y}px))`,
-      }}
     >
-      <div className="relative demo-glass text-white rounded-3xl shadow-2xl overflow-hidden demo-narration-accent">
-        {/* Drag Handle */}
-        <div
-          className="demo-drag-handle flex items-center justify-center pt-3 pb-0"
-          {...dragHandleProps}
-        >
-          <GripHorizontal className="w-5 h-5 text-white/30" />
-        </div>
-
-        {/* Act Badge */}
-        <div className="flex items-center justify-between px-10 pt-2 pb-2">
-          {step.actLabel && (
-            <span className="text-sm font-semibold text-sky-400 uppercase tracking-widest demo-text-shadow-light">
-              {step.actLabel}
+      <div className="w-[calc(100%-3rem)] max-w-2xl">
+        <div className="relative demo-glass text-white rounded-3xl shadow-2xl overflow-hidden demo-narration-accent p-10">
+          {/* Act Badge */}
+          <div className="flex items-center justify-between mb-4">
+            {step.actLabel && (
+              <span className="text-sm font-semibold text-sky-400 uppercase tracking-widest demo-text-shadow-light">
+                {step.actLabel}
+              </span>
+            )}
+            <span className="text-sm text-slate-300 font-mono ml-auto demo-text-shadow-light">
+              {stepIndex + 1} / {totalSteps}
             </span>
-          )}
-          <span className="text-sm text-slate-300 font-mono ml-auto demo-text-shadow-light">
-            {stepIndex + 1} / {totalSteps}
-          </span>
-        </div>
+          </div>
 
-        {/* Title */}
-        <div className="px-10 pb-3 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold leading-tight tracking-tight demo-text-shadow">
+          {/* Title */}
+          <h2 className="text-3xl md:text-4xl font-bold leading-tight tracking-tight text-center demo-text-shadow mb-4">
             {step.title}
           </h2>
-        </div>
 
-        {/* Description */}
-        <div className="px-10 pb-6 text-center">
+          {/* Description */}
           <p
-            className="text-lg md:text-xl text-slate-100 leading-relaxed min-h-[4rem] cursor-pointer demo-text-shadow-light"
+            className="text-lg md:text-xl text-slate-100 leading-relaxed text-center min-h-[4rem] cursor-pointer demo-text-shadow-light"
             onClick={() => !done && skip()}
           >
             {displayed}
@@ -725,52 +458,52 @@ function CenterPanel({
               <span className="inline-block w-0.5 h-6 bg-sky-400 ml-0.5 animate-pulse align-text-bottom" />
             )}
           </p>
-        </div>
 
-        {/* Progress */}
-        <div className="px-10 pb-4">
-          <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-sky-400 to-sky-500 rounded-full transition-all duration-500"
-              style={{
-                width: `${((stepIndex + 1) / totalSteps) * 100}%`,
-              }}
-            />
+          {/* Progress */}
+          <div className="mt-6 mb-4">
+            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-sky-400 to-sky-500 rounded-full transition-all duration-500"
+                style={{
+                  width: `${((stepIndex + 1) / totalSteps) * 100}%`,
+                }}
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Controls */}
-        <div className="flex items-center justify-between px-10 pb-6">
-          <button
-            onClick={onExit}
-            className="text-sm text-white/40 hover:text-white/70 transition-colors"
-          >
-            Exit Demo
-          </button>
-
-          <div className="flex items-center gap-3">
-            {!isFirst && (
-              <button
-                onClick={onPrev}
-                className="flex items-center gap-1 px-4 py-2 text-sm text-white/70 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Back
-              </button>
-            )}
+          {/* Controls */}
+          <div className="flex items-center justify-between">
             <button
-              onClick={onNext}
-              className="flex items-center gap-1 px-6 py-2.5 text-base font-medium bg-sky-500/80 hover:bg-sky-500 text-white rounded-xl transition-colors"
+              onClick={onExit}
+              className="text-sm text-white/40 hover:text-white/70 transition-colors"
             >
-              {isLast ? (
-                "Finish"
-              ) : (
-                <>
-                  Next
-                  <ChevronRight className="w-5 h-5" />
-                </>
-              )}
+              Exit Demo
             </button>
+
+            <div className="flex items-center gap-3">
+              {!isFirst && (
+                <button
+                  onClick={onPrev}
+                  className="flex items-center gap-1 px-4 py-2 text-sm text-white/70 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Back
+                </button>
+              )}
+              <button
+                onClick={onNext}
+                className="flex items-center gap-1 px-6 py-2.5 text-base font-medium bg-sky-500/80 hover:bg-sky-500 text-white rounded-xl transition-colors"
+              >
+                {isLast ? (
+                  "Finish"
+                ) : (
+                  <>
+                    Next
+                    <ChevronRight className="w-5 h-5" />
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -797,7 +530,6 @@ async function typeIntoInput(
   )?.set;
 
   if (!nativeSetter) {
-    // Fallback: set value directly
     el.value = value;
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.classList.remove("demo-field-glow");
@@ -842,8 +574,6 @@ function DemoWizardOverlay() {
     currentStepIndex,
     isTransitioning,
     isMicroActionPlaying,
-    skipMicroActions,
-    panelStyle,
     cursorPosition,
     cursorState,
     nextStep,
@@ -852,7 +582,6 @@ function DemoWizardOverlay() {
     setTransitioning,
     setMicroActionPlaying,
     clearSkipRequest,
-    togglePanelStyle,
     setCursorPosition,
     setCursorState,
   } = useDemoStore();
@@ -864,14 +593,6 @@ function DemoWizardOverlay() {
     Array<{ id: number; x: number; y: number }>
   >([]);
   const rippleIdRef = useRef(0);
-
-  // Draggable panel
-  const { offset: dragOffset, resetOffset, dragHandleProps } = useDraggable();
-
-  // Reset drag offset when step changes
-  useEffect(() => {
-    resetOffset();
-  }, [currentStepIndex, resetOffset]);
 
   // Spotlight measurement
   const spotlightRect = useSpotlightRect(
@@ -902,7 +623,6 @@ function DemoWizardOverlay() {
 
       for (const action of actions) {
         if (shouldSkip()) {
-          // Fast-forward: execute remaining set-state actions silently
           if (action.type === "set-state") {
             try {
               action.action();
@@ -951,7 +671,6 @@ function DemoWizardOverlay() {
             if (pos) {
               setCursorState("clicking");
               addRipple(pos.x, pos.y);
-              // Click the element under the cursor
               const elUnder = document.elementFromPoint(pos.x, pos.y);
               if (elUnder) {
                 (elUnder as HTMLElement).click();
@@ -994,8 +713,6 @@ function DemoWizardOverlay() {
           }
 
           case "spotlight": {
-            // Spotlight updates are handled by the step's spotlightSelector
-            // This is for mid-step spotlight changes
             break;
           }
         }
@@ -1031,11 +748,9 @@ function DemoWizardOverlay() {
     const executeStep = async () => {
       setTransitioning(true);
 
-      // Handle steps with microActions
       if (step.microActions && step.microActions.length > 0) {
-        // Execute set-state actions first (before navigation)
-        const preNavActions = [];
-        const postNavActions = [];
+        const preNavActions: MicroAction[] = [];
+        const postNavActions: MicroAction[] = [];
         let foundNonState = false;
         for (const a of step.microActions) {
           if (!foundNonState && a.type === "set-state") {
@@ -1046,7 +761,6 @@ function DemoWizardOverlay() {
           }
         }
 
-        // Execute pre-navigation state actions
         for (const a of preNavActions) {
           if (a.type === "set-state") {
             try {
@@ -1063,7 +777,6 @@ function DemoWizardOverlay() {
 
         if (cancelled) return;
 
-        // Navigate if needed
         if (step.route && pathname !== step.route) {
           router.push(step.route);
           await sleep(600);
@@ -1075,12 +788,10 @@ function DemoWizardOverlay() {
         if (cancelled) return;
         setTransitioning(false);
 
-        // Execute remaining micro-actions (cursor moves, typing, etc.)
         if (postNavActions.length > 0) {
           await executeMicroActions(postNavActions);
         }
       } else {
-        // Legacy path: no micro-actions, just navigate
         if (step.route && pathname !== step.route) {
           router.push(step.route);
           await sleep(600);
@@ -1123,65 +834,73 @@ function DemoWizardOverlay() {
 
   if (!step) return null;
 
-  // Determine which panel to render
   const isCenter = step.panelPosition === "center";
-
-  const panelProps = {
-    step,
-    stepIndex: currentStepIndex,
-    totalSteps,
-    onNext: () => nextStep(totalSteps),
-    onPrev: prevStep,
-    onExit: stopDemo,
-    onToggleStyle: togglePanelStyle,
-    dragOffset,
-    dragHandleProps,
-  };
-
-  // Panel is visible only when NOT transitioning AND NOT playing micro-actions
-  const showPanel = !isTransitioning && !isMicroActionPlaying;
+  // Bar is hidden during transitions and animations — page/animation is fully visible
+  const showBar = !isTransitioning && !isMicroActionPlaying;
 
   return (
-    <div className="fixed inset-0 z-[100]" style={{ pointerEvents: showPanel ? "auto" : "none" }}>
-      {/* Spotlight overlay — lighter during animations so interactions are visible */}
-      {!isTransitioning && (
-        <SpotlightOverlay
-          rect={spotlightRect}
-          padding={step.spotlightPadding}
-          dimmed={!isMicroActionPlaying}
+    <>
+      {/* Overlay layer — spotlight + cursor above the page */}
+      <div
+        className="fixed inset-0 z-[100]"
+        style={{ pointerEvents: "none" }}
+      >
+        {/* Spotlight overlay — only when bar is visible (page viewing mode) */}
+        {showBar && !isCenter && step.spotlightSelector && (
+          <SpotlightOverlay
+            rect={spotlightRect}
+            padding={step.spotlightPadding}
+            dimmed={true}
+          />
+        )}
+
+        {/* Light overlay during animations so cursor is visible */}
+        {isMicroActionPlaying && !isCenter && (
+          <div className="fixed inset-0 bg-black/10 demo-fade-in" />
+        )}
+
+        {/* Transitioning spinner */}
+        {isTransitioning && !isCenter && (
+          <div className="fixed inset-0 bg-black/20 flex items-center justify-center">
+            <div className="flex items-center gap-3 text-white/70">
+              <div className="w-5 h-5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm demo-text-shadow-light">Navigating...</span>
+            </div>
+          </div>
+        )}
+
+        {/* Animated Cursor — visible during micro-actions */}
+        <DemoCursor
+          position={cursorPosition}
+          cursorState={cursorState}
+          ripples={ripples}
+        />
+      </div>
+
+      {/* Center panel for welcome/closing (full-screen overlay) */}
+      {isCenter && (
+        <CenterPanel
+          step={step}
+          stepIndex={currentStepIndex}
+          totalSteps={totalSteps}
+          onNext={() => nextStep(totalSteps)}
+          onPrev={prevStep}
+          onExit={stopDemo}
         />
       )}
 
-      {/* Transitioning state */}
-      {isTransitioning && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center" style={{ pointerEvents: "none" }}>
-          <div className="flex items-center gap-3 text-white/70">
-            <div className="w-5 h-5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm demo-text-shadow-light">Navigating...</span>
-          </div>
-        </div>
+      {/* Bottom bar — pinned, hides during animations, reappears when done */}
+      {!isCenter && showBar && (
+        <PersistentBottomBar
+          step={step}
+          stepIndex={currentStepIndex}
+          totalSteps={totalSteps}
+          onNext={() => nextStep(totalSteps)}
+          onPrev={prevStep}
+          onExit={stopDemo}
+        />
       )}
-
-      {/* Animated Cursor — always visible during micro-actions */}
-      <DemoCursor
-        position={cursorPosition}
-        cursorState={cursorState}
-        ripples={ripples}
-      />
-
-      {/* Narration panel — hidden during animations, reappears when done */}
-      {showPanel && (
-        <>
-          {isCenter ? (
-            <CenterPanel {...panelProps} />
-          ) : panelStyle === "bar" ? (
-            <CinematicNarrationBar {...panelProps} />
-          ) : (
-            <FloatingNarrationCard {...panelProps} />
-          )}
-        </>
-      )}
-    </div>
+    </>
   );
 }
 

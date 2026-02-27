@@ -597,6 +597,8 @@ function DemoWizardOverlay() {
     Array<{ id: number; x: number; y: number }>
   >([]);
   const rippleIdRef = useRef(0);
+  // Track whether current step's animations have played yet
+  const animationsPlayedRef = useRef(false);
 
   // Spotlight measurement
   const spotlightRect = useSpotlightRect(
@@ -616,6 +618,19 @@ function DemoWizardOverlay() {
     },
     []
   );
+
+  // Get post-navigation micro-actions for a step (everything after leading set-state actions)
+  const getPostNavActions = useCallback((s: DemoStep): MicroAction[] => {
+    if (!s.microActions || s.microActions.length === 0) return [];
+    const actions: MicroAction[] = [];
+    let foundNonState = false;
+    for (const a of s.microActions) {
+      if (!foundNonState && a.type === "set-state") continue;
+      foundNonState = true;
+      actions.push(a);
+    }
+    return actions;
+  }, []);
 
   // Execute micro-actions for a step
   const executeMicroActions = useCallback(
@@ -740,7 +755,25 @@ function DemoWizardOverlay() {
     ]
   );
 
-  // Execute step action and navigation
+  // Handle "Next" — play animations first (if any), then advance
+  const handleNext = useCallback(async () => {
+    const currentStep = DEMO_STEPS[useDemoStore.getState().currentStepIndex];
+    if (!currentStep) return;
+
+    // If this step has post-nav animations that haven't played yet, play them first
+    const postNavActions = getPostNavActions(currentStep);
+    if (postNavActions.length > 0 && !animationsPlayedRef.current) {
+      animationsPlayedRef.current = true;
+      await executeMicroActions(postNavActions);
+      // After animations complete, advance to next step
+      nextStep(totalSteps);
+    } else {
+      // No animations (or already played) — advance immediately
+      nextStep(totalSteps);
+    }
+  }, [executeMicroActions, getPostNavActions, nextStep, totalSteps]);
+
+  // Step entry — ONLY navigate + run pre-nav set-state, then show bar
   useEffect(() => {
     if (!step) return;
     if (
@@ -749,67 +782,48 @@ function DemoWizardOverlay() {
     )
       return;
     prevStepIndexRef.current = currentStepIndex;
+    animationsPlayedRef.current = false; // reset for new step
 
     let cancelled = false;
 
     const executeStep = async () => {
       setTransitioning(true);
 
-      if (step.microActions && step.microActions.length > 0) {
-        const preNavActions: MicroAction[] = [];
-        const postNavActions: MicroAction[] = [];
-        let foundNonState = false;
+      // Execute leading set-state actions (needed before navigation)
+      if (step.microActions) {
         for (const a of step.microActions) {
-          if (!foundNonState && a.type === "set-state") {
-            preNavActions.push(a);
-          } else {
-            foundNonState = true;
-            postNavActions.push(a);
-          }
-        }
-
-        for (const a of preNavActions) {
           if (a.type === "set-state") {
             try {
               a.action();
             } catch {
               // silently continue
             }
+          } else {
+            break; // stop at first non-set-state
           }
         }
-
-        if (preNavActions.length > 0) {
+        // Wait for state to settle
+        const hasPreNav = step.microActions[0]?.type === "set-state";
+        if (hasPreNav) {
           await sleep(step.waitAfterAction ?? 400);
         }
-
-        if (cancelled) return;
-
-        if (step.route && pathname !== step.route) {
-          router.push(step.route);
-          await sleep(600);
-        }
-
-        if (cancelled) return;
-        await sleep(200);
-
-        if (cancelled) return;
-        setTransitioning(false);
-
-        if (postNavActions.length > 0) {
-          await executeMicroActions(postNavActions);
-        }
-      } else {
-        if (step.route && pathname !== step.route) {
-          router.push(step.route);
-          await sleep(600);
-        }
-
-        if (cancelled) return;
-        await sleep(200);
-
-        if (cancelled) return;
-        setTransitioning(false);
       }
+
+      if (cancelled) return;
+
+      // Navigate if needed
+      if (step.route && pathname !== step.route) {
+        router.push(step.route);
+        await sleep(600);
+      }
+
+      if (cancelled) return;
+      await sleep(200);
+
+      if (cancelled) return;
+      setTransitioning(false);
+      // Bar now appears — user reads the description
+      // Animations wait for user to click Next
     };
 
     executeStep();
@@ -825,7 +839,7 @@ function DemoWizardOverlay() {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight" || e.key === " ") {
         e.preventDefault();
-        nextStep(totalSteps);
+        handleNext();
       } else if (e.key === "ArrowLeft") {
         e.preventDefault();
         prevStep();
@@ -837,7 +851,7 @@ function DemoWizardOverlay() {
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [nextStep, prevStep, stopDemo, totalSteps]);
+  }, [handleNext, prevStep, stopDemo]);
 
   if (!step) return null;
 
@@ -890,7 +904,7 @@ function DemoWizardOverlay() {
           step={step}
           stepIndex={currentStepIndex}
           totalSteps={totalSteps}
-          onNext={() => nextStep(totalSteps)}
+          onNext={handleNext}
           onPrev={prevStep}
           onExit={stopDemo}
         />
@@ -902,7 +916,7 @@ function DemoWizardOverlay() {
           step={step}
           stepIndex={currentStepIndex}
           totalSteps={totalSteps}
-          onNext={() => nextStep(totalSteps)}
+          onNext={handleNext}
           onPrev={prevStep}
           onExit={stopDemo}
         />
